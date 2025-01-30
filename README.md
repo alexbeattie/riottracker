@@ -12,6 +12,7 @@ This is a monorepo containing:
   - [Prerequisites](#prerequisites)
   - [Setup](#setup)
     - [Backend](#backend)
+    - [Frontend](#frontend)
 
 ---
 
@@ -26,7 +27,40 @@ Before you begin, ensure you have the following installed:
 
 ## Setup
 
+Certainly! Here's the corrected and properly formatted version of your `README.md` section:
+
+---
+
 ### Backend
 1. Navigate to the `backend` directory:
    ```bash
    cd backend
+   ```
+2. Install Go dependencies:
+   ```bash
+   go mod tidy
+   ```
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+   - Edit `.env` with your configuration.
+
+---
+
+### Frontend
+1. Navigate to the `frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+   - Edit `.env` with your configuration.
