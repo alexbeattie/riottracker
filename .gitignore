@@ -1,0 +1,23 @@
+# Ignore .env files globally
+**/.env
+**/.env.*
+
+# Ignore Node.js dependencies
+**/node_modules/
+
+# Ignore Go build files
+**/bin/
+**/dist/
+
+backend/photos/
+# Ignore IDE-specific files
+.idea/
+.vscode/
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore logs and temporary files
+*.log
+*.tmp
