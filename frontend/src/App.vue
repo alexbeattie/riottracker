@@ -28,18 +28,13 @@
 
         <!-- Fixed Header Section -->
         <div class="p-6">
-          <h3 class="text-xl font-semibold text-gray-900 mb-4">
-            Search The Database
-          </h3>
+          <h3 class="text-xl font-semibold text-gray-900 mb-4">Search The Database</h3>
           <search-filters @filters-changed="handleFiltersChange" />
         </div>
 
         <!-- Scrollable Rioters List -->
         <div class="flex-1 overflow-y-auto px-6">
-          <ul
-            v-if="filteredRioters.length > 0"
-            class="space-y-4"
-          >
+          <ul v-if="filteredRioters.length > 0" class="space-y-4">
             <li
               v-for="rioter in filteredRioters"
               :key="rioter.id"
@@ -52,7 +47,7 @@
                   :src="getImageUrl(rioter.photo_name)"
                   class="h-12 w-12 rounded-full object-cover"
                   @error="handleImageError"
-                >
+                />
                 <div>
                   <h4 class="font-medium text-gray-900">
                     {{ rioter.first_name }} {{ rioter.last_name }}
@@ -70,9 +65,7 @@
             v-else-if="!loading"
             class="bg-white shadow rounded-lg p-6 text-center mt-6"
           >
-            <p class="text-gray-500">
-              No results found matching your filters.
-            </p>
+            <p class="text-gray-500">No results found matching your filters.</p>
           </div>
         </div>
 
@@ -105,9 +98,7 @@
             v-if="loading"
             class="absolute inset-0 bg-gray-100/50 z-10 flex items-center justify-center"
           >
-            <div
-              class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"
-            />
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
           </div>
 
           <!-- Map Component -->
@@ -149,28 +140,20 @@
                   :src="getImageUrl(selectedRioter.photo_name)"
                   class="h-32 w-32 rounded-full object-cover border-4 border-gray-200"
                   @error="handleImageError"
-                >
+                />
                 <div>
                   <h2 class="text-2xl font-bold text-gray-900">
                     {{ selectedRioter.first_name }} {{ selectedRioter.last_name }}
                   </h2>
-                  <p
-                    v-if="selectedRioter.age"
-                    class="text-gray-600"
-                  >
+                  <p v-if="selectedRioter.age" class="text-gray-600">
                     Age: {{ selectedRioter.age }}
                   </p>
                 </div>
               </div>
 
               <!-- Location -->
-              <div
-                v-if="selectedRioter.city || selectedRioter.state"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Location:
-                </h3>
+              <div v-if="selectedRioter.city || selectedRioter.state" class="text-sm">
+                <h3 class="font-semibold">Location:</h3>
                 <p class="text-gray-600">
                   {{
                     [selectedRioter.city, selectedRioter.state].filter(Boolean).join(", ")
@@ -179,65 +162,40 @@
               </div>
 
               <!-- Summary -->
-              <div
-                v-if="selectedRioter.summary"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Summary:
-                </h3>
+              <div v-if="selectedRioter.summary" class="text-sm">
+                <h3 class="font-semibold">Summary:</h3>
                 <p class="mt-1 text-gray-600">
                   {{ selectedRioter.summary }}
                 </p>
               </div>
 
               <!-- Jurisdiction -->
-              <div
-                v-if="selectedRioter.jurisdiction"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Jurisdiction:
-                </h3>
+              <div v-if="selectedRioter.jurisdiction" class="text-sm">
+                <h3 class="font-semibold">Jurisdiction:</h3>
                 <p class="text-gray-600">
                   {{ selectedRioter.jurisdiction }}
                 </p>
               </div>
 
               <!-- Charges -->
-              <div
-                v-if="selectedRioter.charges"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Charges:
-                </h3>
+              <div v-if="selectedRioter.charges" class="text-sm">
+                <h3 class="font-semibold">Charges:</h3>
                 <p class="mt-1 text-gray-600">
                   {{ selectedRioter.charges }}
                 </p>
               </div>
 
               <!-- Case Status -->
-              <div
-                v-if="selectedRioter.case_status"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Case Status:
-                </h3>
+              <div v-if="selectedRioter.case_status" class="text-sm">
+                <h3 class="font-semibold">Case Status:</h3>
                 <p class="mt-1 text-gray-600">
                   {{ selectedRioter.case_status }}
                 </p>
               </div>
 
               <!-- Case Updates -->
-              <div
-                v-if="selectedRioter.case_updates"
-                class="text-sm"
-              >
-                <h3 class="font-semibold">
-                  Case Updates:
-                </h3>
+              <div v-if="selectedRioter.case_updates" class="text-sm">
+                <h3 class="font-semibold">Case Updates:</h3>
                 <p class="mt-1 text-gray-600">
                   {{ selectedRioter.case_updates }}
                 </p>
@@ -284,10 +242,7 @@
               </div>
 
               <!-- Charges Link -->
-              <div
-                v-if="selectedRioter.charges_link"
-                class="mt-4"
-              >
+              <div v-if="selectedRioter.charges_link" class="mt-4">
                 <a
                   :href="selectedRioter.charges_link"
                   target="_blank"
@@ -393,6 +348,9 @@ const filteredRioters = computed(() => {
       .filter(([, value]) => value)
       .map(([key]) => key);
 
+    // Debugging: Log current filters
+    console.log("Applying filters:", currentFilters.value);
+
     // Search text filter
     if (
       searchText &&
@@ -401,8 +359,9 @@ const filteredRioters = computed(() => {
         rioter.summary?.toLowerCase().includes(searchText) ||
         rioter.charges?.toLowerCase().includes(searchText)
       )
-    )
+    ) {
       return false;
+    }
 
     // State filter
     if (stateFilter && rioter.state?.toLowerCase() !== stateFilter) {
@@ -471,9 +430,10 @@ const toggleFetchMode = () => {
 
 // Modify handleFiltersChange
 const handleFiltersChange = (filters) => {
-  currentPage.value = 1; // Reset to first page when filters change
+  console.log("Filters changed:", filters); // Debugging
 
-  currentFilters.value = filters;
+  currentPage.value = 1; // Reset pagination when filters change
+  currentFilters.value = { ...filters }; // Ensure reactivity
   if (filters.state) {
     const stateCenters = {
       ca: [-119.417931, 37.184092],
@@ -491,6 +451,7 @@ const handleFiltersChange = (filters) => {
   } else {
     manualBounds.value = null;
   }
+  fetchRioters(); // Re-fetch filtered results
 };
 const getCoordinates = () => {
   return new Promise((resolve, reject) => {
