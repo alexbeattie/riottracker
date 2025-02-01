@@ -4,31 +4,32 @@
     <img
       :src="imageUrl"
       :alt="alt"
-      @error="handleImageError"
       :class="imageClass"
       loading="lazy"
+      @error="handleImageError"
     />
     <div
       v-if="isLoading"
       class="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-full"
     >
-      <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-500"></div>
+      <div class="animate-spin rounded-full h-6 w-6 border-2 border-gray-500" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { getImageUrl, getPlaceholderUrl } from '../utils/imageHandling';
+import { ref, computed } from "vue";
+import { getImageUrl, getPlaceholderUrl } from "../utils/imageHandling";
 
 const props = defineProps({
-  photoName: String,
-  firstName: String,
-  lastName: String,
+  photoName: { type: String, default: "" },
+  firstName: { type: String, default: "Unknown" },
+  lastName: { type: String, default: "User" },
+
   imageClass: {
     type: String,
-    default: 'h-24 w-24 rounded-full object-cover border-2 border-gray-200'
-  }
+    default: "h-24 w-24 rounded-full object-cover border-2 border-gray-200",
+  },
 });
 
 const isLoading = ref(true);
@@ -43,7 +44,7 @@ const handleImageError = (event) => {
   event.target.src = getPlaceholderUrl();
 };
 
-const onLoad = () => {
-  isLoading.value = false;
-};
+// const onLoad = () => {
+//   isLoading.value = false;
+// };
 </script>

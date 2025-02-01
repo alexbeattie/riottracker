@@ -140,9 +140,35 @@ router.Use(cors.New(cors.Config{
 	})
 	// API endpoint to fetch all rioters
 	router.GET("/api/rioters", func(c *gin.Context) {
-		log.Println("Received request for /api/rioters")
+    // Pagination parameters
+    pageStr := c.DefaultQuery("page", "1")
+    pageSizeStr := c.DefaultQuery("page_size", "20")
 
-		query := `
+    page, err := strconv.Atoi(pageStr)
+    if err != nil || page < 1 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
+        return
+    }
+
+    pageSize, err := strconv.Atoi(pageSizeStr)
+    if err != nil || pageSize < 1 || pageSize > 100 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size (1-100)"})
+        return
+    }
+
+    offset := (page - 1) * pageSize
+
+    // Get total count
+    var total int
+    countQuery := `SELECT COUNT(*) FROM rioters`
+    if err := db.QueryRow(countQuery).Scan(&total); err != nil {
+        log.Printf("Count query error: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+        return
+    }
+
+    // Get paginated results
+    query := `
         SELECT id, last_name, first_name, middle_name, summary, 
                jurisdiction, charges, charges_link, case_status, 
                case_updates, violence_assault, conspiracy, theft, 
@@ -152,43 +178,86 @@ router.Use(cors.New(cors.Config{
                ST_X(geom::geometry) as longitude,
                ST_Y(geom::geometry) as latitude
         FROM rioters
+        ORDER BY id
+        LIMIT $1 OFFSET $2
     `
-		rows, err := db.Query(query)
-		if err != nil {
-			log.Printf("Database query error: %v", err)
+
+    rows, err := db.Query(query, pageSize, offset)
+    if err != nil {
+        log.Printf("Database query error: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    defer rows.Close()
+
+    var rioters []Rioter
+    for rows.Next() {
+        var r Rioter
+        if err := rows.Scan(
+            &r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
+            &r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
+            &r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
+            &r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
+            &r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
+            &r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
+            &r.PhotoName, &r.Longitude, &r.Latitude,
+        ); err != nil {
+            log.Printf("Row scan error: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+        rioters = append(rioters, r)
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "data":      rioters,
+        "total":     total,
+        "page":      page,
+        "page_size": pageSize,
+        "pages":     int(math.Ceil(float64(total) / float64(pageSize))),
+    })
+})
+router.GET("/api/search/suggestions", func(c *gin.Context) {
+	term := c.Query("term")
+	if term == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Search term is required"})
+		return
+	}
+
+	query := `
+		SELECT DISTINCT
+			ts_headline(
+				first_name || ' ' || last_name || ' ' || city,
+				websearch_to_tsquery('english', $1),
+				'StartSel=<mark>, StopSel=</mark>'
+			) AS suggestion,
+			ts_rank(search_vector, websearch_to_tsquery('english', $1)) AS rank
+		FROM rioters
+		WHERE search_vector @@ websearch_to_tsquery('english', $1)
+		ORDER BY rank DESC
+		LIMIT 5
+	`
+
+	rows, err := db.Query(query, term)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var suggestions []string
+	for rows.Next() {
+		var suggestion string
+		var rank float64
+		if err := rows.Scan(&suggestion, &rank); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		defer rows.Close()
+		suggestions = append(suggestions, suggestion)
+	}
 
-		var rioters []Rioter
-		for rows.Next() {
-			var r Rioter
-			if err := rows.Scan(
-				&r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
-				&r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
-				&r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
-				&r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
-				&r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
-				&r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
-				&r.PhotoName, &r.Longitude, &r.Latitude,
-			); err != nil {
-				log.Printf("Row scan error: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			rioters = append(rioters, r)
-		}
-
-		if err = rows.Err(); err != nil {
-			log.Printf("Row iteration error: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		log.Printf("Successfully fetched %d rioters", len(rioters))
-		c.JSON(http.StatusOK, rioters)
-	})
+	c.JSON(http.StatusOK, suggestions)
+})
 
 	router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
 		rows, err := db.Query("SELECT location, COUNT(*) FROM rioters GROUP BY location")
