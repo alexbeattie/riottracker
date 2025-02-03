@@ -12,7 +12,7 @@ module.exports = {
   },
   rules: {
     "vue/multi-word-component-names": "off", // Disable multi-word rule if needed
-    "vue/attributes-order": "off"
+    "vue/attributes-order": "off", // Disable attributes order rule if needed
 
   },
   globals: {

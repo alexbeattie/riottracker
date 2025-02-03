@@ -1,10 +1,7 @@
 <template>
   <div class="w-full h-full bg-white shadow rounded-lg p-4">
     <!-- <h2 class="text-xl font-semibold mb-4">Rioters Locations</h2> -->
-    <div
-      ref="mapContainer"
-      class="w-full h-[100vh] rounded-lg"
-    />
+    <div ref="mapContainer" class="w-full h-[100vh] rounded-lg" />
   </div>
 </template>
 
@@ -13,6 +10,7 @@ import { ref, onMounted, watch, defineProps, onBeforeUnmount } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getImageUrl } from "../utils/imageHandling";
+import Supercluster from "supercluster";
 
 const MAPBOX_ACCESS_TOKEN = process.env.VUE_APP_MAPBOX_ACCESS_TOKEN;
 const createPopupContent = (rioter) => {
@@ -85,40 +83,72 @@ const initializeMap = () => {
   }
 };
 
-const clearMarkers = () => {
-  markers.value.forEach((marker) => marker.remove());
-  markers.value = [];
-};
+// const clearMarkers = () => {
+//   markers.value.forEach((marker) => marker.remove());
+//   markers.value = [];
+// };
 
 const updateMarkers = () => {
-  clearMarkers();
-  // Check if we have valid coordinates
-  const validRioters = props.rioters.filter(
-    (r) => r.latitude && r.longitude && !isNaN(r.latitude) && !isNaN(r.longitude)
-  );
+  if (!map) return;
 
-  if (validRioters.length === 0 && map) {
-    map.flyTo({
-      center: [-98.5795, 39.8283],
-      zoom: 3,
-    });
-    return;
-  }
-  props.rioters.forEach((rioter) => {
-    if (rioter.latitude && rioter.longitude) {
-      const lat = parseFloat(rioter.latitude);
-      const lng = parseFloat(rioter.longitude);
-      if (isNaN(lat) || isNaN(lng)) {
-        console.error("Invalid coordinates for rioter:", rioter.id);
-        return;
-      }
+  // Clear existing markers
+  markers.value.forEach((marker) => marker.remove());
+  markers.value = [];
 
-      const marker = new mapboxgl.Marker()
-        .setLngLat([rioter.longitude, rioter.latitude])
+  // Create GeoJSON FeatureCollection from rioters data
+  const geojsonData = {
+    type: "FeatureCollection",
+    features: props.rioters
+      .filter((r) => r.latitude && r.longitude)
+      .map((rioter) => ({
+        type: "Feature",
+        properties: {
+          id: rioter.id,
+          first_name: rioter.first_name,
+          last_name: rioter.last_name,
+          city: rioter.city,
+          state: rioter.state,
+          charges: rioter.charges,
+          photo_name: rioter.photo_name,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [parseFloat(rioter.longitude), parseFloat(rioter.latitude)],
+        },
+      })),
+  };
+
+  // Check for overlapping markers by clustering logic
+  const cluster = new Supercluster({
+    radius: 50,
+    maxZoom: 14,
+  }).load(geojsonData.features);
+
+  // Add markers or clusters
+  geojsonData.features.forEach((feature) => {
+    const [lng, lat] = feature.geometry.coordinates;
+
+    const clusterPoints = cluster.getClusters([lng, lat, lng, lat], map.getZoom());
+
+    if (clusterPoints.length > 1) {
+      // Handle overlapping markers by creating a cluster marker
+      const clusterMarker = new mapboxgl.Marker({ color: "red" })
+        .setLngLat([lng, lat])
         .setPopup(
-          new mapboxgl.Popup().setHTML(createPopupContent(rioter)) // Here's the fix
+          new mapboxgl.Popup().setHTML(
+            `<strong>${clusterPoints.length} rioters here</strong>`
+          )
         )
         .addTo(map);
+
+      markers.value.push(clusterMarker);
+    } else {
+      // Normal marker for individual rioters
+      const marker = new mapboxgl.Marker()
+        .setLngLat([lng, lat])
+        .setPopup(new mapboxgl.Popup().setHTML(createPopupContent(feature.properties)))
+        .addTo(map);
+
       markers.value.push(marker);
     }
   });

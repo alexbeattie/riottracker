@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -20,6 +21,29 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
+
+type NewRioterRequest struct {
+	LastName        string  `json:"last_name" binding:"required"`
+	FirstName       string  `json:"first_name" binding:"required"`
+	MiddleName      *string `json:"middle_name"`
+	Summary         *string `json:"summary"`
+	Jurisdiction    *string `json:"jurisdiction"`
+	Charges         *string `json:"charges"`
+	ChargesLink     *string `json:"charges_link"`
+	CaseStatus      *string `json:"case_status"`
+	CaseUpdates     *string `json:"case_updates"`
+	ViolenceAssault bool    `json:"violence_assault"`
+	Conspiracy      bool    `json:"conspiracy"`
+	Theft           bool    `json:"theft"`
+	Property        bool    `json:"property"`
+	Age             *int    `json:"age"`
+	City            *string `json:"city"`
+	State           *string `json:"state"`
+	MilitaryLE      bool    `json:"military_le"`
+	Extremist       bool    `json:"extremist"`
+	InspiredTrump   bool    `json:"inspired_trump"`
+	// You can add additional fields such as timestamps if needed.
+}
 
 // Define the Rioter struct
 type Rioter struct {
@@ -123,9 +147,9 @@ func main() {
 
 	// Set up CORS first
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8081","http://192.168.1.82:8081"},
-		AllowMethods:     []string{"GET"},
-		AllowHeaders:     []string{"Origin"},
+		AllowOrigins:     []string{"http://localhost:8081", "http://192.168.1.82:8081"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // Add OPTIONS here
+		AllowHeaders:     []string{"Origin", "Content-Type"},                  // Add Content-Type here
 		ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -273,27 +297,27 @@ func main() {
 		c.JSON(http.StatusOK, suggestions)
 	})
 
-	router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
-		rows, err := db.Query("SELECT location, COUNT(*) FROM rioters GROUP BY location")
-		if err != nil {
+router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
+	rows, err := db.Query("SELECT state, COUNT(*) FROM rioters GROUP BY state") // ✅ Use 'state' instead of 'location'
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	stateCounts := make(map[string]int)
+	for rows.Next() {
+		var state string
+		var count int
+		if err := rows.Scan(&state, &count); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		defer rows.Close()
+		stateCounts[state] = count
+	}
 
-		stateCounts := make(map[string]int)
-		for rows.Next() {
-			var state string
-			var count int
-			if err := rows.Scan(&state, &count); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			stateCounts[state] = count
-		}
-
-		c.JSON(http.StatusOK, stateCounts)
-	})
+	c.JSON(http.StatusOK, stateCounts)
+    })
 	router.GET("/api/rioters/nearby", func(c *gin.Context) {
 		latStr := c.Query("lat")
 		lngStr := c.Query("lng")
@@ -458,6 +482,118 @@ func main() {
 		c.JSON(http.StatusOK, clusters)
 	})
 
+router.GET("/api/rioters/by-state", func(c *gin.Context) {
+    state := c.Query("state")
+    if state == "" {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "State parameter is required"})
+        return
+    }
+
+    query := `
+        SELECT 
+            city,
+            json_agg(json_build_object(
+                'id', id,
+                'first_name', first_name,
+                'last_name', last_name,
+                'latitude', ST_Y(geom::geometry),
+                'longitude', ST_X(geom::geometry)
+            )) AS markers
+        FROM rioters
+        WHERE state = $1
+        GROUP BY city
+    `
+
+    rows, err := db.Query(query, state)
+    if err != nil {
+        log.Printf("Database query error: %v", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+        return
+    }
+    defer rows.Close()
+
+    var results []map[string]interface{}
+    for rows.Next() {
+        var city string
+        var markers string
+        if err := rows.Scan(&city, &markers); err != nil {
+            log.Printf("Row scan error: %v", err)
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+            return
+        }
+
+        result := map[string]interface{}{
+            "city":    city,
+            "markers": json.RawMessage(markers),
+        }
+        results = append(results, result)
+    }
+
+    c.JSON(http.StatusOK, results)
+})
+
+	// POST endpoint to add a new rioter record
+router.POST("/api/rioters", func(c *gin.Context) {
+    var newRioter NewRioterRequest
+    if err := c.ShouldBindJSON(&newRioter); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    // Safely extract city and state (using empty string if nil)
+    city := ""
+    if newRioter.City != nil {
+        city = *newRioter.City
+    }
+    state := ""
+    if newRioter.State != nil {
+        state = *newRioter.State
+    }
+
+    // Call your Mapbox geocoding function to get coordinates.
+    lat, lon, err := geocode.GeocodeWithMapbox(city, state)
+    if err != nil {
+        // You might want to log the error and decide whether to proceed without coordinates.
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding error: " + err.Error()})
+        return
+    }
+
+    // Optionally log the coordinates for debugging.
+    log.Printf("Geocoded coordinates for %s, %s: lat=%v, lon=%v", city, state, *lat, *lon)
+
+    // Insert the new record using the computed lat/lon.
+    var newID int
+    err = db.QueryRow(`
+        INSERT INTO rioters (
+            last_name, first_name, middle_name, summary, jurisdiction, charges,
+            charges_link, case_status, case_updates, violence_assault, conspiracy,
+            theft, property, age, city, state, military_le, extremist, inspired_trump,
+            latitude, longitude, geom
+        )
+        VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14, $15, $16, $17, $18, $19,
+            $20, $21,
+            ST_SetSRID(ST_MakePoint($21, $20), 4326)
+        )
+        RETURNING id
+    `,
+        newRioter.LastName, newRioter.FirstName, newRioter.MiddleName, newRioter.Summary, newRioter.Jurisdiction, newRioter.Charges,
+        newRioter.ChargesLink, newRioter.CaseStatus, newRioter.CaseUpdates, newRioter.ViolenceAssault, newRioter.Conspiracy,
+        newRioter.Theft, newRioter.Property, newRioter.Age, newRioter.City, newRioter.State, newRioter.MilitaryLE, newRioter.Extremist, newRioter.InspiredTrump,
+        lat, lon,
+    ).Scan(&newID)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusCreated, gin.H{
+        "status": "success",
+        "id":     newID,
+    })
+})
 	// Start server
 	router.Run(":8080")
 }

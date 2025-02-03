@@ -73,7 +73,10 @@
         </select>
       </div>
     </div>
-
+    <!-- Display State Count -->
+    <div v-if="rioterCount !== null" class="mb-4 p-3 bg-blue-100 text-blue-800 rounded">
+      There are {{ rioterCount }} rioters in {{ selectedState }}.
+    </div>
     <!-- Affiliation Filters (Inline) -->
     <div class="mt-4">
       <label class="block text-gray-700 mb-2">Affiliations</label>
@@ -96,12 +99,16 @@
   </div>
 </template>
 <script setup>
-import { ref, watch, defineEmits } from "vue";
+import { ref, watch, defineEmits, onMounted } from "vue";
+import api from "../api"; // Ensure this is your API file
 
 // Define the emit function
 const emit = defineEmits(["filters-changed"]);
 const debounceTimeout = ref(null);
 const loading = ref(false); // Add loading state
+const stateCounts = ref({}); // Stores the count of rioters in each state
+const selectedState = ref(""); // Tracks selected state
+const rioterCount = ref(null); // Stores rioter count for selected state
 
 const filters = ref({
   searchText: "",
@@ -175,6 +182,15 @@ const affiliationOptions = ref({
   extremist: "Extremist Groups",
   sentenced: "Sentenced",
 });
+// Fetch the state counts from the backend
+const fetchStateCounts = async () => {
+  try {
+    const response = await api.get("/rioters/count-by-state");
+    stateCounts.value = response.data;
+  } catch (error) {
+    console.error("Error fetching state counts:", error);
+  }
+};
 
 const emitFilters = () => {
   loading.value = true; // Show loading indicator
@@ -212,6 +228,8 @@ const resetFilters = () => {
       commuted: false,
     },
   };
+  selectedState.value = "";
+  rioterCount.value = null;
   emitFilters();
 };
 
@@ -229,10 +247,12 @@ const debounceSearch = () => {
 
 // Watch for filter changes
 watch(
-  filters,
-  () => {
+  () => filters.value.state,
+  (newState) => {
+    selectedState.value = newState;
+    rioterCount.value = stateCounts.value[newState] || null;
     emitFilters();
-  },
-  { deep: true }
+  }
 );
+onMounted(fetchStateCounts);
 </script>
