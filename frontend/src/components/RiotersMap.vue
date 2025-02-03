@@ -10,7 +10,6 @@ import { ref, onMounted, watch, defineProps, onBeforeUnmount } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getImageUrl } from "../utils/imageHandling";
-import Supercluster from "supercluster";
 
 const MAPBOX_ACCESS_TOKEN = process.env.VUE_APP_MAPBOX_ACCESS_TOKEN;
 const createPopupContent = (rioter) => {
@@ -95,65 +94,105 @@ const updateMarkers = () => {
   markers.value.forEach((marker) => marker.remove());
   markers.value = [];
 
-  // Create GeoJSON FeatureCollection from rioters data
-  const geojsonData = {
-    type: "FeatureCollection",
-    features: props.rioters
-      .filter((r) => r.latitude && r.longitude)
-      .map((rioter) => ({
-        type: "Feature",
-        properties: {
-          id: rioter.id,
-          first_name: rioter.first_name,
-          last_name: rioter.last_name,
-          city: rioter.city,
-          state: rioter.state,
-          charges: rioter.charges,
-          photo_name: rioter.photo_name,
-        },
-        geometry: {
-          type: "Point",
-          coordinates: [parseFloat(rioter.longitude), parseFloat(rioter.latitude)],
-        },
-      })),
-  };
+  // Group rioters by coordinates
+  const groupedRioters = props.rioters.reduce((acc, rioter) => {
+    if (!rioter.latitude || !rioter.longitude) return acc;
 
-  // Check for overlapping markers by clustering logic
-  const cluster = new Supercluster({
-    radius: 50,
-    maxZoom: 14,
-  }).load(geojsonData.features);
-
-  // Add markers or clusters
-  geojsonData.features.forEach((feature) => {
-    const [lng, lat] = feature.geometry.coordinates;
-
-    const clusterPoints = cluster.getClusters([lng, lat, lng, lat], map.getZoom());
-
-    if (clusterPoints.length > 1) {
-      // Handle overlapping markers by creating a cluster marker
-      const clusterMarker = new mapboxgl.Marker({ color: "red" })
-        .setLngLat([lng, lat])
-        .setPopup(
-          new mapboxgl.Popup().setHTML(
-            `<strong>${clusterPoints.length} rioters here</strong>`
-          )
-        )
-        .addTo(map);
-
-      markers.value.push(clusterMarker);
-    } else {
-      // Normal marker for individual rioters
-      const marker = new mapboxgl.Marker()
-        .setLngLat([lng, lat])
-        .setPopup(new mapboxgl.Popup().setHTML(createPopupContent(feature.properties)))
-        .addTo(map);
-
-      markers.value.push(marker);
+    const key = `${rioter.latitude},${rioter.longitude}`;
+    if (!acc[key]) {
+      acc[key] = {
+        rioters: [],
+        coordinates: [parseFloat(rioter.longitude), parseFloat(rioter.latitude)],
+        city: rioter.city,
+        state: rioter.state,
+      };
     }
+    acc[key].rioters.push(rioter);
+    return acc;
+  }, {});
+
+  // Create markers for each group
+  Object.values(groupedRioters).forEach((group) => {
+    const isCluster = group.rioters.length > 1;
+
+    // Create custom popup content for clusters
+    const createClusterPopup = (rioters) => {
+      return `
+        <div class="p-4">
+          <h3 class="font-bold mb-2">${group.city}, ${group.state}</h3>
+          <p class="mb-2">${rioters.length} rioters at this location</p>
+          <div class="max-h-60 overflow-y-auto">
+            ${rioters
+              .map(
+                (rioter) => `
+              <div class="flex items-center mb-2 border-b pb-2">
+                <img 
+                  src="${getImageUrl(rioter.photo_name)}"
+                  alt="${rioter.first_name} ${rioter.last_name}"
+                  class="h-8 w-8 rounded-full object-cover mr-2"
+                  onerror="this.src='${getImageUrl()}'"/>
+                <div>
+                  <div class="font-semibold">${rioter.first_name} ${
+                  rioter.last_name
+                }</div>
+                  ${
+                    rioter.charges
+                      ? `<small class="text-gray-600">${rioter.charges}</small>`
+                      : ""
+                  }
+                </div>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    };
+
+    // Create marker with appropriate style and popup
+    const marker = new mapboxgl.Marker({
+      color: isCluster ? "#f00" : "#4a4a4a",
+      scale: isCluster ? 1.2 : 1,
+    })
+      .setLngLat(group.coordinates)
+      .setPopup(
+        new mapboxgl.Popup({
+          maxWidth: "300px",
+        }).setHTML(
+          isCluster
+            ? createClusterPopup(group.rioters)
+            : createPopupContent(group.rioters[0])
+        )
+      )
+      .addTo(map);
+
+    // Add cluster count if needed
+    if (isCluster) {
+      const el = document.createElement("div");
+      el.className = "cluster-marker";
+      el.style.backgroundColor = "white";
+      el.style.borderRadius = "50%";
+      el.style.width = "20px";
+      el.style.height = "20px";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.position = "absolute";
+      el.style.top = "-10px";
+      el.style.right = "-10px";
+      el.style.border = "2px solid #f00";
+      el.style.fontSize = "12px";
+      el.style.fontWeight = "bold";
+      el.innerText = group.rioters.length;
+
+      marker.getElement().appendChild(el);
+    }
+
+    markers.value.push(marker);
   });
 
-  // Auto-zoom to markers if bounds exist
+  // Fit bounds if provided
   if (props.bounds && map) {
     map.fitBounds(props.bounds, {
       padding: 50,
@@ -162,7 +201,6 @@ const updateMarkers = () => {
     });
   }
 };
-
 watch(() => props.rioters, updateMarkers, { deep: true });
 
 watch(
@@ -190,6 +228,30 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
+.map-container {
+  width: w-full;
+  height: h-full;
+  position: relative;
+}
+
+.cluster-marker {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.mapboxgl-popup-content {
+  padding: 0 !important;
+  border-radius: 8px !important;
+}
+
+@media (max-width: 1024px) {
+  .lg\:rounded-l-lg {
+    border-radius: 0;
+  }
+  .lg\:static {
+    position: static;
+  }
+}
 .map-container {
   width: w-full;
   height: h-full;

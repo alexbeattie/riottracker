@@ -1,8 +1,5 @@
 <template>
-  <div>
-    <h1>Map View</h1>
-    <p>This is the Map page.</p>
-  </div>
+  <div></div>
 </template>
 
 <script>

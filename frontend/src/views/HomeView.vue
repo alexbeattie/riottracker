@@ -1,9 +1,4 @@
-<template>
-  <div>
-    <h1>Home View</h1>
-    <p>Welcome to the Home page!</p>
-  </div>
-</template>
+<template><div></div></template>
 
 <script>
 export default {

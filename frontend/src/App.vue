@@ -482,7 +482,7 @@ const handleFiltersChange = (filters) => {
   if (filters.state) {
     fetchMode.value = "all"; // ✅ Ensure all rioters for the state are fetched
     currentPage.value = 1; // Reset to the first page
-    pageSize.value = 50; // Adjust based on need
+    pageSize.value = 200; // Adjust based on need
   }
 
   // Ensure the state parameter is properly set
@@ -598,7 +598,7 @@ const fetchRioters = async (append = false) => {
     const params = {
       // page: currentPage.value,
       page: 1,
-      page_size: 170, // Fetch more results per page if necessary
+      page_size: 658, // Fetch more results per page if necessary
     };
 
     // if (currentFilters.value.state) {
