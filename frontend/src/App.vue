@@ -28,7 +28,9 @@
 
         <!-- Fixed Header Section -->
         <div class="p-6">
-          <h3 class="text-xl font-semibold text-gray-900 mb-4">Search The Database</h3>
+          <h3 class="text-xl font-semibold text-gray-900 mb-4">
+            Search The J6 Rioters Database
+          </h3>
           <search-filters @filters-changed="handleFiltersChange" />
         </div>
 
@@ -68,7 +70,13 @@
             <p class="text-gray-500">No results found matching your filters.</p>
           </div>
         </div>
-
+        <!-- <button
+          v-if="currentPage < totalPages"
+          @click="loadMoreRioters"
+          class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg w-full"
+        >
+          Load More
+        </button> -->
         <!-- Fixed Footer Section -->
         <div class="p-6">
           <button
@@ -78,7 +86,7 @@
             {{ fetchMode === "all" ? "Show Nearby" : "Show All" }}
           </button>
           <BasePagination
-            v-if="fetchMode === 'all'"
+            v-if="fetchMode === 'all' && !currentFilters.state"
             :current-page="currentPage"
             :total-pages="totalPages"
             :page-size="pageSize"
@@ -89,7 +97,7 @@
     </div>
 
     <!-- Main Content (Map) -->
-    <div class="flex-1 relative flex flex-col min-h-0">
+    <div class="flex-1 relative flex flex-col min-h-0" @click="closeSidebarOnMobile">
       <!-- Map Container -->
       <div class="sticky top-0 flex-1 min-h-0">
         <div class="h-full w-full relative">
@@ -143,7 +151,8 @@
                 />
                 <div>
                   <h2 class="text-2xl font-bold text-gray-900">
-                    {{ selectedRioter.first_name }} {{ selectedRioter.last_name }}
+                    {{ selectedRioter.first_name }}
+                    {{ selectedRioter.last_name }}
                   </h2>
                   <p v-if="selectedRioter.age" class="text-gray-600">
                     Age: {{ selectedRioter.age }}
@@ -279,7 +288,17 @@ import RiotersMap from "./components/RiotersMap.vue";
 import BasePagination from "./components/BasePagination.vue"; // Updated import
 import api from "./api"; // Only one import
 // State
-
+// const loadMoreRioters = () => {
+//   if (currentPage.value < totalPages.value) {
+//     currentPage.value += 1;
+//     fetchRioters(true); // Append new data instead of replacing
+//   }
+// };
+const closeSidebarOnMobile = () => {
+  if (window.innerWidth < 1024) {
+    showMobileSidebar.value = false;
+  }
+};
 const manualBounds = ref(null);
 const showMobileSidebar = ref(false);
 const selectedRioter = ref(null);
@@ -305,7 +324,7 @@ const mapKey = ref(0);
 
 // State
 const currentPage = ref(1);
-const pageSize = ref(20);
+const pageSize = ref(1);
 const totalPages = ref(1);
 const totalItems = ref(0);
 
@@ -347,9 +366,6 @@ const filteredRioters = computed(() => {
     const activeAffiliations = Object.entries(currentFilters.value.affiliations)
       .filter(([, value]) => value)
       .map(([key]) => key);
-
-    // Debugging: Log current filters
-    console.log("Applying filters:", currentFilters.value);
 
     // Search text filter
     if (
@@ -430,16 +446,93 @@ const toggleFetchMode = () => {
 
 // Modify handleFiltersChange
 const handleFiltersChange = (filters) => {
-  console.log("Filters changed:", filters); // Debugging
+  // Reset pagination when a state filter is applied
+  console.log("Applying filters:", filters);
 
-  currentPage.value = 1; // Reset pagination when filters change
-  currentFilters.value = { ...filters }; // Ensure reactivity
+  // If a state is selected, reset fetchMode to "all"
+  if (filters.state) {
+    fetchMode.value = "all"; // ✅ Ensure all rioters for the state are fetched
+    currentPage.value = 1; // Reset to the first page
+    pageSize.value = 50; // Adjust based on need
+  }
+
+  // Ensure the state parameter is properly set
+  currentFilters.value = {
+    searchText: filters.searchText || "",
+    state: filters.state || "", // Ensure state is handled
+    charges: filters.charges || "",
+    status: filters.status || "",
+    affiliations: { ...filters.affiliations }, // Clone affiliations object
+  };
+  // If any checkbox is selected, force fetchMode to "all"
+  if (Object.values(filters.affiliations).some((val) => val)) {
+    fetchMode.value = "all";
+  }
+  // If any dropdown or checkbox is applied, reset fetchMode to "all"
+  if (
+    filters.state ||
+    filters.charges ||
+    filters.status ||
+    Object.values(filters.affiliations).some((val) => val)
+  ) {
+    fetchMode.value = "all";
+  }
+
+  // Update map bounds if state filter is applied
+  // Update map bounds if state filter is applied
   if (filters.state) {
     const stateCenters = {
-      ca: [-119.417931, 37.184092],
-      tx: [-99.359349, 31.816038],
-      ny: [-75.144424, 43.156168],
-      // Add more states as needed
+      alaska: [-152.404419, 64.200841], // Example coordinates for Alask
+      al: [-86.902298, 32.318231], // Alabama
+      ak: [-154.493062, 63.588753], // Alaska
+      az: [-111.093731, 34.048927], // Arizona
+      ar: [-92.373123, 34.969704], // Arkansas
+      ca: [-119.417931, 37.184092], // California
+      co: [-105.311104, 39.550051], // Colorado
+      ct: [-72.755371, 41.597782], // Connecticut
+      de: [-75.507141, 39.318523], // Delaware
+      fl: [-81.515754, 27.994402], // Florida
+      ga: [-83.357567, 32.165622], // Georgia
+      hi: [-155.665857, 20.796667], // Hawaii
+      id: [-114.742041, 44.068202], // Idaho
+      il: [-89.398528, 40.633125], // Illinois
+      in: [-86.134902, 40.267194], // Indiana
+      ia: [-93.581543, 41.878003], // Iowa
+      ks: [-98.484246, 38.498778], // Kansas
+      ky: [-85.759407, 37.839333], // Kentucky
+      la: [-92.145024, 31.244823], // Louisiana
+      me: [-69.445469, 45.253783], // Maine
+      md: [-76.641271, 39.045755], // Maryland
+      ma: [-71.382437, 42.407211], // Massachusetts
+      mi: [-85.602364, 44.314844], // Michigan
+      mn: [-94.685899, 46.729553], // Minnesota
+      ms: [-89.398528, 32.354668], // Mississippi
+      mo: [-92.373123, 38.573936], // Missouri
+      mt: [-110.362566, 46.879682], // Montana
+      ne: [-99.901813, 41.492537], // Nebraska
+      nv: [-116.419389, 38.80261], // Nevada
+      nh: [-71.572395, 43.193852], // New Hampshire
+      nj: [-74.405661, 40.058324], // New Jersey
+      nm: [-105.870091, 34.51994], // New Mexico
+      ny: [-75.144424, 43.156168], // New York
+      nc: [-79.0193, 35.759573], // North Carolina
+      nd: [-99.784012, 47.551493], // North Dakota
+      oh: [-82.907123, 40.417287], // Ohio
+      ok: [-97.092877, 35.007752], // Oklahoma
+      or: [-120.554201, 44.045674], // Oregon
+      pa: [-77.194525, 41.203322], // Pennsylvania
+      ri: [-71.477429, 41.580095], // Rhode Island
+      sc: [-81.163725, 33.836081], // South Carolina
+      sd: [-99.438828, 43.969515], // South Dakota
+      tn: [-86.580447, 35.517491], // Tennessee
+      tx: [-99.359349, 31.816038], // Texas
+      ut: [-111.950684, 39.41922], // Utah
+      vt: [-72.577841, 44.558803], // Vermont
+      va: [-78.656894, 37.431573], // Virginia
+      wa: [-120.740139, 47.751074], // Washington
+      wv: [-80.954456, 38.597626], // West Virginia
+      wi: [-89.616508, 44.78444], // Wisconsin
+      wy: [-107.290284, 43.075968], // Wyoming
     };
     const center = stateCenters[filters.state.toLowerCase()];
     if (center) {
@@ -451,7 +544,8 @@ const handleFiltersChange = (filters) => {
   } else {
     manualBounds.value = null;
   }
-  fetchRioters(); // Re-fetch filtered results
+
+  fetchRioters(); // Re-fetch data
 };
 const getCoordinates = () => {
   return new Promise((resolve, reject) => {
@@ -466,32 +560,85 @@ const getCoordinates = () => {
   });
 };
 
-const fetchRioters = async () => {
+const fetchRioters = async (append = false) => {
   loading.value = true;
   error.value = null;
 
   try {
     let response;
+    const params = {
+      // page: currentPage.value,
+      page: 1,
+      page_size: 170, // Fetch more results per page if necessary
+    };
+
+    // if (currentFilters.value.state) {
+    //   params.state = currentFilters.value.state;
+    // }
+    console.log("Fetching rioters with params:", params); // Debugging
+
+    // response = await api.get("/rioters", { params });
+
+    // Add non-empty filters to the params object
+    Object.entries(currentFilters.value).forEach(([key, value]) => {
+      if (value !== "" && value !== null && value !== undefined) {
+        params[key] = value;
+      }
+    });
+    // Ensure all states are fetched when no specific state is selected
+    if (!currentFilters.value.state) {
+      delete params.state; // Remove state filter from query
+    }
+    // ✅ Flatten affiliations object
+    if (currentFilters.value.affiliations) {
+      Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
+        if (value) {
+          params[`affiliations.${key}`] = value; // Convert to API format
+        }
+      });
+    }
+
+    response = await api.get("/rioters", { params });
+
+    // ✅ Append results when "Load More" is clicked
+    rioters.value = append
+      ? [...rioters.value, ...response.data.data] // Append new results
+      : response.data.data; // Replace results when fetching fresh
+
+    totalItems.value = response.data.total || response.data.length;
+    totalPages.value = Math.ceil(totalItems.value / params.page_size);
+
+    // Handle response
+    // rioters.value = response.data.data || response.data;
+    // totalItems.value = response.data.total || response.data.length;
+    // totalPages.value = response.data.pages || 1;
+
+    // Apply all active filters
+    if (currentFilters.value.searchText) {
+      params.searchText = currentFilters.value.searchText;
+    }
+    if (currentFilters.value.state) {
+      params.state = currentFilters.value.state;
+    }
+    if (currentFilters.value.charges) {
+      params.charges = currentFilters.value.charges;
+    }
+    if (currentFilters.value.status) {
+      params.status = currentFilters.value.status;
+    } // Flatten the affiliations object
+    if (currentFilters.value.affiliations) {
+      Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
+        if (value !== "" && value !== null && value !== undefined) {
+          params[`affiliations.${key}`] = value; // Flatten to affiliations.military_le, etc.
+        }
+      });
+      delete params.affiliations; // Remove the nested object
+    }
 
     if (fetchMode.value === "all") {
-      response = await api.get("/rioters", {
-        params: {
-          page: currentPage.value,
-          page_size: pageSize.value,
-        },
-      });
-
-      // Ensure the response matches the expected structure
-      if (response.data && response.data.data) {
-        rioters.value = response.data.data;
-        totalItems.value = response.data.total;
-        totalPages.value = response.data.pages;
-      } else {
-        throw new Error("Invalid API response structure");
-      }
+      response = await api.get("/rioters", { params });
     } else {
       // Nearby mode logic
-      currentPage.value = 1; // Reset to first page when switching modes
       let coords;
       try {
         coords = await getCoordinates();
@@ -500,18 +647,20 @@ const fetchRioters = async () => {
         userLocation.value = { lat: 34.052235, lng: -118.243683 };
       }
 
-      response = await api.get("/rioters/nearby", {
-        params: {
-          lng: coords.lng,
-          lat: coords.lat,
-          radius: 50000,
-        },
-      });
+      const nearbyParams = {
+        lng: coords.lng,
+        lat: coords.lat,
+        radius: 50000,
+        ...params, // Use the flattened params
+      };
 
-      rioters.value = response.data;
-      totalItems.value = response.data.length; // For nearby mode, total items = fetched items
-      totalPages.value = 1; // Nearby mode doesn't use pagination
+      response = await api.get("/rioters/nearby", { params: nearbyParams });
     }
+
+    // Handle response
+    rioters.value = response.data.data || response.data;
+    totalItems.value = response.data.total || response.data.length;
+    totalPages.value = response.data.pages || 1;
   } catch (err) {
     console.error("Fetch error:", err);
     error.value = `Failed to fetch rioters: ${err.message}`;

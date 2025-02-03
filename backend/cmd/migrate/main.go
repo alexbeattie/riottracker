@@ -111,25 +111,25 @@ func main() {
 	})
 
 	if err := os.MkdirAll("photos", os.ModePerm); err != nil {
-    log.Fatal("Failed to create photos directory:", err)
-}
+		log.Fatal("Failed to create photos directory:", err)
+	}
 
-placeholderPath := "./photos/placeholder.jpg"
-if _, err := os.Stat(placeholderPath); os.IsNotExist(err) {
-    log.Printf("Warning: placeholder.jpg not found in photos directory")
-}
+	placeholderPath := "./photos/placeholder.jpg"
+	if _, err := os.Stat(placeholderPath); os.IsNotExist(err) {
+		log.Printf("Warning: placeholder.jpg not found in photos directory")
+	}
 
-// Set up Gin
+	// Set up Gin
 
-// Set up CORS first
-router.Use(cors.New(cors.Config{
-    AllowOrigins:     []string{"http://localhost:8081"},
-    AllowMethods:     []string{"GET"},
-    AllowHeaders:     []string{"Origin"},
-    ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
-    AllowCredentials: true,
-    MaxAge:           12 * time.Hour,
-}))
+	// Set up CORS first
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:8081","http://192.168.1.82:8081"},
+		AllowMethods:     []string{"GET"},
+		AllowHeaders:     []string{"Origin"},
+		ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	router.GET("/api/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
@@ -140,35 +140,35 @@ router.Use(cors.New(cors.Config{
 	})
 	// API endpoint to fetch all rioters
 	router.GET("/api/rioters", func(c *gin.Context) {
-    // Pagination parameters
-    pageStr := c.DefaultQuery("page", "1")
-    pageSizeStr := c.DefaultQuery("page_size", "20")
+		// Pagination parameters
+		pageStr := c.DefaultQuery("page", "1")
+		pageSizeStr := c.DefaultQuery("page_size", "20")
 
-    page, err := strconv.Atoi(pageStr)
-    if err != nil || page < 1 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
-        return
-    }
+		page, err := strconv.Atoi(pageStr)
+		if err != nil || page < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
+			return
+		}
 
-    pageSize, err := strconv.Atoi(pageSizeStr)
-    if err != nil || pageSize < 1 || pageSize > 100 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size (1-100)"})
-        return
-    }
+		pageSize, err := strconv.Atoi(pageSizeStr)
+		if err != nil || pageSize < 1 || pageSize > 1000 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size (1-1000)"})
+			return
+		}
 
-    offset := (page - 1) * pageSize
+		offset := (page - 1) * pageSize
 
-    // Get total count
-    var total int
-    countQuery := `SELECT COUNT(*) FROM rioters`
-    if err := db.QueryRow(countQuery).Scan(&total); err != nil {
-        log.Printf("Count query error: %v", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-        return
-    }
+		// Get total count
+		var total int
+		countQuery := `SELECT COUNT(*) FROM rioters`
+		if err := db.QueryRow(countQuery).Scan(&total); err != nil {
+			log.Printf("Count query error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
 
-    // Get paginated results
-    query := `
+		// Build the base query
+		query := `
         SELECT id, last_name, first_name, middle_name, summary, 
                jurisdiction, charges, charges_link, case_status, 
                case_updates, violence_assault, conspiracy, theft, 
@@ -178,53 +178,67 @@ router.Use(cors.New(cors.Config{
                ST_X(geom::geometry) as longitude,
                ST_Y(geom::geometry) as latitude
         FROM rioters
-        ORDER BY id
-        LIMIT $1 OFFSET $2
+        WHERE 1=1
     `
 
-    rows, err := db.Query(query, pageSize, offset)
-    if err != nil {
-        log.Printf("Database query error: %v", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-    defer rows.Close()
+		// Add filters based on query parameters
+		var args []interface{}
+		argCounter := 1
 
-    var rioters []Rioter
-    for rows.Next() {
-        var r Rioter
-        if err := rows.Scan(
-            &r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
-            &r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
-            &r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
-            &r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
-            &r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
-            &r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
-            &r.PhotoName, &r.Longitude, &r.Latitude,
-        ); err != nil {
-            log.Printf("Row scan error: %v", err)
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return
-        }
-        rioters = append(rioters, r)
-    }
+		if state := c.Query("state"); state != "" {
+			query += fmt.Sprintf(" AND state = $%d", argCounter)
+			args = append(args, state)
+			argCounter++
+		}
 
-    c.JSON(http.StatusOK, gin.H{
-        "data":      rioters,
-        "total":     total,
-        "page":      page,
-        "page_size": pageSize,
-        "pages":     int(math.Ceil(float64(total) / float64(pageSize))),
-    })
-})
-router.GET("/api/search/suggestions", func(c *gin.Context) {
-	term := c.Query("term")
-	if term == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Search term is required"})
-		return
-	}
+		// Add pagination
+		query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
+		args = append(args, pageSize, offset)
 
-	query := `
+		// Execute the query
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			log.Printf("Database query error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer rows.Close()
+
+		var rioters []Rioter
+		for rows.Next() {
+			var r Rioter
+			if err := rows.Scan(
+				&r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
+				&r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
+				&r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
+				&r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
+				&r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
+				&r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
+				&r.PhotoName, &r.Longitude, &r.Latitude,
+			); err != nil {
+				log.Printf("Row scan error: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			rioters = append(rioters, r)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data":      rioters,
+			"total":     total,
+			"page":      page,
+			"page_size": pageSize,
+			"pages":     int(math.Ceil(float64(total) / float64(pageSize))),
+		})
+	})
+	router.GET("/api/search/suggestions", func(c *gin.Context) {
+		term := c.Query("term")
+		if term == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Search term is required"})
+			return
+		}
+
+		query := `
 		SELECT DISTINCT
 			ts_headline(
 				first_name || ' ' || last_name || ' ' || city,
@@ -238,26 +252,26 @@ router.GET("/api/search/suggestions", func(c *gin.Context) {
 		LIMIT 5
 	`
 
-	rows, err := db.Query(query, term)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer rows.Close()
-
-	var suggestions []string
-	for rows.Next() {
-		var suggestion string
-		var rank float64
-		if err := rows.Scan(&suggestion, &rank); err != nil {
+		rows, err := db.Query(query, term)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		suggestions = append(suggestions, suggestion)
-	}
+		defer rows.Close()
 
-	c.JSON(http.StatusOK, suggestions)
-})
+		var suggestions []string
+		for rows.Next() {
+			var suggestion string
+			var rank float64
+			if err := rows.Scan(&suggestion, &rank); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			suggestions = append(suggestions, suggestion)
+		}
+
+		c.JSON(http.StatusOK, suggestions)
+	})
 
 	router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
 		rows, err := db.Query("SELECT location, COUNT(*) FROM rioters GROUP BY location")

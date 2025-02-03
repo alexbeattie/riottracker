@@ -1,234 +1,238 @@
-<!-- src/components/SearchFilters.vue -->
 <template>
   <div class="bg-white shadow rounded-lg p-6 mb-8">
-    <!-- <h3 class="text-xl font-semibold text-gray-900 mb-6">Search The Database</h3> -->
+    <!-- Search & Reset Button (Inline) -->
+    <div class="flex items-center gap-4 mb-4">
+      <!-- 🔍 Search Box -->
+      <div class="relative flex-1">
+        <input
+          v-model="filters.searchText"
+          type="text"
+          placeholder="Search by name, location, charges..."
+          class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          @input="debounceSearch"
+          @change="emitFilters"
+        />
+        <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
+      </div>
 
-    <!-- Text Search -->
-    <div class="mb-4">
-      <input
-        v-model="filters.searchText"
-        type="text"
-        placeholder="Search anything..."
-        class="w-full p-2 pl-8 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-        @input="debounceSearch"
-      />
+      <!-- Reset Filters Button -->
+      <button
+        class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
+        @click="resetFilters"
+      >
+        Reset Filters
+      </button>
     </div>
 
-    <!-- Dropdowns Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <!-- Dropdowns Grid (Inline) -->
+    <div class="grid grid-cols-3 gap-4 mb-4">
       <!-- State Dropdown -->
-      <select
-        v-model="filters.state"
-        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-        @change="emitFilters"
-      >
-        <option value="">All states...</option>
-        <option v-for="state in states" :key="state" :value="state">
-          {{ state }}
-        </option>
-      </select>
+      <div class="relative">
+        <label class="block text-gray-700 mb-1">State</label>
+        <select
+          v-model="filters.state"
+          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          @change="emitFilters"
+        >
+          <option value="">All states...</option>
+          <option v-for="state in states" :key="state" :value="state">
+            {{ state }}
+          </option>
+        </select>
+      </div>
 
       <!-- Charges Dropdown -->
-      <select
-        v-model="filters.charges"
-        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-        @change="emitFilters"
-      >
-        <option value="">Any charges...</option>
-        <option value="violence_assault">Violence/assault</option>
-        <option value="conspiracy">Conspiracy</option>
-        <option value="property">Property destruction</option>
-      </select>
+      <div class="relative">
+        <label class="block text-gray-700 mb-1">Charges</label>
+        <select
+          v-model="filters.charges"
+          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          @change="emitFilters"
+        >
+          <option value="">Any charges...</option>
+          <option value="violence_assault">Violence/assault</option>
+          <option value="conspiracy">Conspiracy</option>
+          <option value="property">Property destruction</option>
+        </select>
+      </div>
 
       <!-- Status Dropdown -->
-      <select
-        v-model="filters.status"
-        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-        @change="emitFilters"
-      >
-        <option value="">Any case status...</option>
-        <option value="pleaded-not-guilty">Pleaded not guilty</option>
-        <option value="pleaded-guilty">Pleaded guilty to one or more charges</option>
-        <option value="acquitted">Acquitted at trial</option>
-        <option value="convicted">Convicted at trial</option>
-        <option value="dismissed">Dismissed</option>
-        <option value="missing">Missing</option>
-      </select>
+      <div class="relative">
+        <label class="block text-gray-700 mb-1 truncate">Case Status</label>
+        <select
+          v-model="filters.status"
+          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          @change="emitFilters"
+        >
+          <option value="">Any case status...</option>
+          <option value="pleaded-not-guilty">Pleaded not guilty</option>
+          <option value="pleaded-guilty">Pleaded guilty to one or more charges</option>
+          <option value="acquitted">Acquitted at trial</option>
+          <option value="convicted">Convicted at trial</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+      </div>
     </div>
 
-    <!-- Checkboxes -->
-    <div class="space-y-4">
-      <!-- New/Updated Checkbox -->
-      <!-- <div class="flex items-center">
-        <input
-          type="checkbox"
-          id="new"
-          v-model="filters.isNewOrUpdated"
-          @change="emitFilters"
-          class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-        />
-        <label for="new" class="ml-2 text-sm text-gray-700">New/updated</label>
-      </div> -->
-
-      <!-- Affiliations -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div
+    <!-- Affiliation Filters (Inline) -->
+    <div class="mt-4">
+      <label class="block text-gray-700 mb-2">Affiliations</label>
+      <div class="flex flex-wrap gap-2">
+        <button
           v-for="(label, key) in affiliationOptions"
           :key="key"
-          class="flex items-center"
+          class="px-3 py-2 rounded-md text-sm transition"
+          :class="
+            filters.affiliations[key]
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          "
+          @click="toggleAffiliation(key)"
         >
-          <input
-            :id="key"
-            v-model="filters.affiliations[key]"
-            type="checkbox"
-            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            @change="emitFilters"
-          />
-          <label :for="key" class="ml-2 text-sm text-gray-700">{{ label }}</label>
-        </div>
+          {{ label }}
+        </button>
       </div>
     </div>
   </div>
 </template>
+<script setup>
+import { ref, watch, defineEmits } from "vue";
 
-<script>
-export default {
-  name: "SearchFilters",
-  data() {
-    return {
-      debounceTimeout: null,
-      filters: {
-        searchText: "",
-        state: "",
-        charges: "",
-        status: "",
-        affiliations: {
-          military_le: false,
-          extremist: false,
-          sentenced: false,
-          commuted: false,
-        },
-      },
-      states: [
-        "Alabama",
-        "Alaska",
-        "Arizona",
-        "Arkansas",
-        "California",
-        "Colorado",
-        "Connecticut",
-        "D.C.",
-        "Delaware",
-        "Florida",
-        "Georgia",
-        "Hawaii",
-        "Idaho",
-        "Illinois",
-        "Indiana",
-        "Iowa",
-        "Kansas",
-        "Kentucky",
-        "Louisiana",
-        "Maine",
-        "Maryland",
-        "Massachusetts",
-        "Michigan",
-        "Minnesota",
-        "Mississippi",
-        "Missouri",
-        "Montana",
-        "Nebraska",
-        "Nevada",
-        "New Hampshire",
-        "New Jersey",
-        "New Mexico",
-        "New York",
-        "North Carolina",
-        "North Dakota",
-        "Ohio",
-        "Oklahoma",
-        "Oregon",
-        "Pennsylvania",
-        "Rhode Island",
-        "South Carolina",
-        "South Dakota",
-        "Tennessee",
-        "Texas",
-        "Utah",
-        "Vermont",
-        "Virginia",
-        "Washington",
-        "West Virginia",
-        "Wisconsin",
-        "Wyoming",
-      ],
-      stateCounts: {}, // Holds the number of rioters per state
+// Define the emit function
+const emit = defineEmits(["filters-changed"]);
+const debounceTimeout = ref(null);
+const loading = ref(false); // Add loading state
 
-      affiliationOptions: {
-        military_le: "Military/law enforcement ties",
-        extremist: "Ties to extremist or fringe groups",
-        sentenced: "Sentenced",
-        commuted: "Commuted",
-      },
+const filters = ref({
+  searchText: "",
+  state: "",
+  charges: "",
+  status: "",
+  affiliations: {
+    military_le: false,
+    extremist: false,
+    sentenced: false,
+    commuted: false,
+  },
+});
+
+const states = ref([
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "D.C.",
+  "Delaware",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming",
+]);
+
+const affiliationOptions = ref({
+  military_le: "Military/Law Enforcement",
+  extremist: "Extremist Groups",
+  sentenced: "Sentenced",
+});
+
+const emitFilters = () => {
+  loading.value = true; // Show loading indicator
+  setTimeout(() => {
+    const payload = {
+      searchText: filters.value.searchText.trim(),
+      state: filters.value.state,
+      charges: filters.value.charges,
+      status: filters.value.status,
+      affiliations: { ...filters.value.affiliations },
     };
-  },
-  watch: {
-    // Optimized watchers with conditional emission
-    "filters.state"(newVal, oldVal) {
-      if (newVal !== oldVal) this.emitFilters();
-    },
-    "filters.charges"(newVal, oldVal) {
-      if (newVal !== oldVal) this.emitFilters();
-    },
-    "filters.status"(newVal, oldVal) {
-      if (newVal !== oldVal) this.emitFilters();
-    },
-    "filters.affiliations": {
-      handler(newVal, oldVal) {
-        if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
-          this.emitFilters();
-        }
-      },
-      deep: true,
-    },
-  },
-  beforeUnmount() {
-    clearTimeout(this.debounceTimeout);
-  },
-  methods: {
-    debounceSearch() {
-      clearTimeout(this.debounceTimeout);
-
-      // Immediate emit if input is cleared
-      // Immediate search when clearing input
-      if (!this.filters.searchText.trim()) {
-        this.emitFilters();
-        return;
-      }
-
-      // Faster debounce with progressive delay
-      const baseDelay = 150;
-      const textLength = this.filters.searchText.length;
-      const dynamicDelay = textLength > 3 ? baseDelay : baseDelay * 2;
-
-      this.debounceTimeout = setTimeout(() => {
-        this.emitFilters();
-      }, dynamicDelay);
-    },
-    emitFilters() {
-      const payload = {
-        searchText: this.filters.searchText.trim(),
-        state: this.filters.state,
-        charges: this.filters.charges,
-        status: this.filters.status,
-        affiliations: Object.keys(this.filters.affiliations).filter(
-          (key) => this.filters.affiliations[key]
-        ),
-      };
-
-      console.log("Emitting filters:", payload);
-      this.$emit("filters-changed", payload);
-    },
-  },
+    console.log("Emitting filters:", payload);
+    emit("filters-changed", payload);
+    loading.value = false; // Hide loading indicator
+  }, 500);
 };
+
+// Toggle affiliations (Button Click)
+const toggleAffiliation = (key) => {
+  filters.value.affiliations[key] = !filters.value.affiliations[key];
+  emitFilters();
+};
+
+// Reset Filters
+const resetFilters = () => {
+  filters.value = {
+    searchText: "",
+    state: "",
+    charges: "",
+    status: "",
+    affiliations: {
+      military_le: false,
+      extremist: false,
+      sentenced: false,
+      commuted: false,
+    },
+  };
+  emitFilters();
+};
+
+// Debounce search input
+const debounceSearch = () => {
+  clearTimeout(debounceTimeout.value);
+  if (!filters.value.searchText.trim()) {
+    emitFilters();
+    return;
+  }
+  debounceTimeout.value = setTimeout(() => {
+    emitFilters();
+  }, 300);
+};
+
+// Watch for filter changes
+watch(
+  filters,
+  () => {
+    emitFilters();
+  },
+  { deep: true }
+);
 </script>

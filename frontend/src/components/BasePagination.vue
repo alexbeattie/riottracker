@@ -2,9 +2,10 @@
   <div class="p-6 flex items-center justify-center space-x-4 w-full">
     <!-- Previous Button -->
     <button
-      @click="handlePageChange(currentPage - 1)"
+      type="button"
       :disabled="currentPage === 1"
       class="px-4 py-2 bg-blue-500 text-white rounded-lg flex-1 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+      @click="handlePageChange(currentPage - 1)"
     >
       ← Prev
     </button>
@@ -17,9 +18,10 @@
 
     <!-- Next Button -->
     <button
-      @click="handlePageChange(currentPage + 1)"
+      type="button"
       :disabled="currentPage === totalPages"
       class="px-2 py-2 bg-blue-500 text-white rounded-lg flex-1 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+      @click="handlePageChange(currentPage + 1)"
     >
       Next →
     </button>

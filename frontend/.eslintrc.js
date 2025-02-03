@@ -12,6 +12,8 @@ module.exports = {
   },
   rules: {
     "vue/multi-word-component-names": "off", // Disable multi-word rule if needed
+    "vue/attributes-order": "off"
+
   },
   globals: {
     defineProps: "readonly", // Add this
