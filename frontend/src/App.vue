@@ -35,8 +35,8 @@
           </button>
 
           <!-- Fixed Header Section -->
-          <div class="p-6">
-            <h3 class="text-xl font-semibold text-gray-900 mb-4">
+          <div class="p-2 flex-shrink-0 bg-white border-b border-gray-200">
+            <h3 class="text-xl font-semibold text-gray-900">
               Search The J6 Rioters Database
             </h3>
             <search-filters @filters-changed="handleFiltersChange" />
@@ -48,6 +48,7 @@
               <li
                 v-for="rioter in filteredRioters"
                 :key="rioter.id"
+                :data-rioter-id="rioter.id"
                 class="cursor-pointer p-4 hover:bg-gray-50 shadow rounded-lg"
                 :class="{ 'bg-blue-50': selectedRioter?.id === rioter.id }"
                 @click="selectRioter(rioter)"
@@ -85,21 +86,26 @@
         >
           Load More
         </button> -->
-          <!-- Fixed Footer Section -->
-          <div class="p-6">
+          <div
+            class="p-2 bg-white border-t border-gray-200 flex items-center justify-center"
+          >
+            <!-- Show Nearby Button -->
             <button
-              class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg w-full"
+              class="px-3 py-1 text-xs font-medium bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
               @click="toggleFetchMode"
             >
               {{ fetchMode === "all" ? "Show Nearby" : "Show All" }}
             </button>
-            <BasePagination
+
+            <!-- Pagination -->
+            <!-- <BasePagination
               v-if="fetchMode === 'all' && !currentFilters.state"
+              class="text-xs"
               :current-page="currentPage"
               :total-pages="totalPages"
               :page-size="pageSize"
               @page-changed="handlePageChange"
-            />
+            /> -->
           </div>
         </div>
       </div>
@@ -125,7 +131,7 @@
               :rioters="filteredRioters"
               :bounds="manualBounds || mapBounds"
               :selected-rioter="selectedRioter"
-              @marker-click="selectRioter"
+              @marker-click="handleMarkerClick"
               :state-counts="stateCounts"
             />
           </div>
@@ -299,7 +305,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import SearchFilters from "./components/SearchFilters.vue";
 import RiotersMap from "./components/RiotersMap.vue";
-import BasePagination from "./components/BasePagination.vue"; // Updated import
+// import BasePagination from "./components/BasePagination.vue"; // Updated import
 import api from "./api"; // Only one import
 import Navigation from "./components/Navigation.vue";
 // Component registration is automatic with <script setup>
@@ -706,10 +712,10 @@ const fetchRioters = async (append = false) => {
   }
 };
 // Add page change handler
-const handlePageChange = (newPage) => {
-  currentPage.value = newPage;
-  fetchRioters();
-};
+// const handlePageChange = (newPage) => {
+//   currentPage.value = newPage;
+//   fetchRioters();
+// };
 
 const getImageUrl = (photoName) => {
   const baseUrl = "http://localhost:8080";
@@ -721,10 +727,23 @@ const getImageUrl = (photoName) => {
 const handleImageError = (event) => {
   event.target.src = "http://localhost:8080/photos/placeholder.jpg";
 };
-
 const selectRioter = (rioter) => {
   selectedRioter.value = rioter; // Update the selected rioter
   showMobileSidebar.value = false; // Close sidebar on mobile
+
+  // Scroll to the selected rioter in the list
+  const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
+  if (rioterElement) {
+    rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+};
+
+const handleMarkerClick = (rioter) => {
+  selectRioter(rioter);
+  const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
+  if (rioterElement) {
+    rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 };
 
 onMounted(fetchRioters);

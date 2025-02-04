@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white shadow rounded-lg p-6 mb-8">
+  <div class="bg-white shadow rounded-lg p-6 mb-2">
     <!-- Search & Reset Button (Inline) -->
     <div class="flex items-center gap-4 mb-4">
       <!-- 🔍 Search Box -->
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Dropdowns Grid (Inline) -->
-    <div class="grid grid-cols-3 gap-4 mb-4">
+    <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
       <!-- State Dropdown -->
       <div class="relative">
         <label class="block text-gray-700 mb-1">State</label>
@@ -80,15 +80,15 @@
     <!-- Affiliation Filters (Inline) -->
     <div class="mt-4">
       <label class="block text-gray-700 mb-2">Affiliations</label>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex flex-wrap items-center gap-1">
         <button
           v-for="(label, key) in affiliationOptions"
           :key="key"
-          class="px-3 py-2 rounded-md text-sm transition"
+          class="px-2 py-1 rounded-lg text-xs font-medium transition whitespace-nowrap border border-gray-300 shadow-sm"
           :class="
             filters.affiliations[key]
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              ? 'bg-blue-500 text-white border-blue-500'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           "
           @click="toggleAffiliation(key)"
         >
@@ -178,8 +178,8 @@ const states = ref([
 ]);
 
 const affiliationOptions = ref({
-  military_le: "Military/Law Enforcement",
-  extremist: "Extremist Groups",
+  military_le: "Military/LEO",
+  extremist: "Extremist Orgs",
   sentenced: "Sentenced",
 });
 // Fetch the state counts from the backend
@@ -215,7 +215,7 @@ const toggleAffiliation = (key) => {
 };
 
 // Reset Filters
-const resetFilters = () => {
+const resetFilters = async () => {
   filters.value = {
     searchText: "",
     state: "",
@@ -228,11 +228,15 @@ const resetFilters = () => {
       commuted: false,
     },
   };
-  selectedState.value = "";
-  rioterCount.value = null;
-  emitFilters();
-};
 
+  selectedState.value = "All States"; // Reset display state text
+
+  await fetchStateCounts(); // Fetch updated counts from the API
+
+  rioterCount.value = stateCounts.value["total"] || 1567; // Default total rioters
+
+  emitFilters(); // Trigger filter update
+};
 // Debounce search input
 const debounceSearch = () => {
   clearTimeout(debounceTimeout.value);
@@ -249,8 +253,13 @@ const debounceSearch = () => {
 watch(
   () => filters.value.state,
   (newState) => {
-    selectedState.value = newState;
-    rioterCount.value = stateCounts.value[newState] || null;
+    if (!newState) {
+      selectedState.value = "All States";
+      rioterCount.value = stateCounts.value["total"] || 1567;
+    } else {
+      selectedState.value = newState;
+      rioterCount.value = stateCounts.value[newState] || 0;
+    }
     emitFilters();
   }
 );
