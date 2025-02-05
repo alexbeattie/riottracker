@@ -28,6 +28,15 @@
           Add New Rioter
         </router-link>
       </li>
+      <li>
+        <router-link
+          to="/edit"
+          class="text-white hover:text-gray-300"
+          active-class="font-bold"
+        >
+          Edit Rioter
+        </router-link>
+      </li>
     </ul>
   </nav>
 </template>

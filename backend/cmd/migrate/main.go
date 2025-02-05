@@ -13,7 +13,7 @@ import (
 	"strconv" // ✅ New import
 	"strings"
 	"time"
-
+    "errors"
 	"path/filepath"
 
 	"github.com/gin-contrib/cors"
@@ -21,7 +21,10 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
-
+// NullBool wraps sql.NullBool to support JSON unmarshaling.
+type NullBool struct {
+	sql.NullBool
+}
 type NewRioterRequest struct {
 	LastName        string  `json:"last_name" binding:"required"`
 	FirstName       string  `json:"first_name" binding:"required"`
@@ -47,34 +50,35 @@ type NewRioterRequest struct {
 
 // Define the Rioter struct
 type Rioter struct {
-	ID              int        `json:"id"`
-	LastName        string     `json:"last_name"`
-	FirstName       string     `json:"first_name"`
-	MiddleName      *string    `json:"middle_name"`
-	Summary         *string    `json:"summary"`
-	Jurisdiction    *string    `json:"jurisdiction"`
-	Charges         *string    `json:"charges"`
-	ChargesLink     *string    `json:"charges_link"`
-	CaseStatus      *string    `json:"case_status"`
-	CaseUpdates     *string    `json:"case_updates"`
-    ViolenceAssault sql.NullBool   `json:"violence_assault"`
-    Conspiracy      sql.NullBool   `json:"conspiracy"`
-    Theft           sql.NullBool   `json:"theft"`
-    Property        sql.NullBool   `json:"property"`
-	Age             *int       `json:"age"`
-	City            *string    `json:"city"`
-	State           *string    `json:"state"`
-    MilitaryLE      sql.NullBool   `json:"military_le"`
-    Extremist       sql.NullBool   `json:"extremist"`
-    InspiredTrump   sql.NullBool   `json:"inspired_trump"`
-    Sentenced       sql.NullBool   `json:"sentenced"`
-    Commuted        sql.NullBool   `json:"commuted"`
-    Pardoned        sql.NullBool   `json:"pardoned"`
+	ID              int       `json:"id"`
+	LastName        string    `json:"last_name"`
+	FirstName       string    `json:"first_name"`
+	MiddleName      *string   `json:"middle_name"`
+	Summary         *string   `json:"summary"`
+	Jurisdiction    *string   `json:"jurisdiction"`
+	Charges         *string   `json:"charges"`
+	ChargesLink     *string   `json:"charges_link"`
+	CaseStatus      *string   `json:"case_status"`
+	CaseUpdates     *string   `json:"case_updates"`
+	ViolenceAssault NullBool  `json:"violence_assault"`
+	Conspiracy      NullBool  `json:"conspiracy"`
+	Theft           NullBool  `json:"theft"`
+	Property        NullBool  `json:"property"`
+	Age             *int      `json:"age"`
+	City            *string   `json:"city"`
+	State           *string   `json:"state"`
+	MilitaryLE      NullBool  `json:"military_le"`
+	Extremist       NullBool  `json:"extremist"`
+	InspiredTrump   NullBool  `json:"inspired_trump"`
+	Sentenced       NullBool  `json:"sentenced"`
+	Commuted        NullBool  `json:"commuted"`
+	Pardoned        NullBool  `json:"pardoned"`
 	ArrestDate      *time.Time `json:"arrest_date"`
-	PhotoName       *string    `json:"photo_name"`
-	Latitude        *float64   `json:"latitude"`
-	Longitude       *float64   `json:"longitude"`
+	PhotoName       *string   `json:"photo_name"`
+	Latitude        *float64  `json:"latitude"`
+	Longitude       *float64  `json:"longitude"`
 }
+
 type NearbyRioter struct {
 	ID        int      `json:"id"`
 	FirstName string   `json:"first_name"`
@@ -85,6 +89,30 @@ type NearbyRioter struct {
 	Longitude *float64 `json:"longitude"`
 	Latitude  *float64 `json:"latitude"`
 	Distance  float64  `json:"distance"`
+}
+func (nb *NullBool) UnmarshalJSON(data []byte) error {
+	// If the value is null, mark it as invalid.
+	if string(data) == "null" {
+		nb.Valid = false
+		return nil
+	}
+
+	// Try unmarshaling into a boolean.
+	var b bool
+	if err := json.Unmarshal(data, &b); err != nil {
+		return errors.New("NullBool: unable to unmarshal data into bool")
+	}
+	nb.Bool = b
+	nb.Valid = true
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+func (nb NullBool) MarshalJSON() ([]byte, error) {
+	if !nb.Valid {
+		return []byte("null"), nil
+	}
+	return json.Marshal(nb.Bool)
 }
 
 func main() {
@@ -147,7 +175,7 @@ func main() {
 
 	// Set up CORS first
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8081", "http://192.168.1.82:8081"},
+		AllowOrigins:     []string{"http://localhost:8081", "http://192.168.1.82:8081","http://192.168.1.158:8081"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // Add OPTIONS here
 		AllowHeaders:     []string{"Origin", "Content-Type"},                  // Add Content-Type here
 		ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
@@ -163,38 +191,38 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 	// API endpoint to fetch all rioters
-router.GET("/api/rioters", func(c *gin.Context) {
-    // Check for "all" parameter first
-    fetchAll := c.Query("all") == "true"
+	router.GET("/api/rioters", func(c *gin.Context) {
+		// Check for "all" parameter first
+		fetchAll := c.Query("all") == "true"
 
-    // Build base WHERE clause and args for both count and data queries
-    whereClause := "WHERE 1=1"
-    var args []interface{}
-    argCounter := 1
+		// Build base WHERE clause and args for both count and data queries
+		whereClause := "WHERE 1=1"
+		var args []interface{}
+		argCounter := 1
 
-    if state := c.Query("state"); state != "" {
-        whereClause += fmt.Sprintf(" AND state = $%d", argCounter)
-        args = append(args, state)
-        argCounter++
-    }
+		if state := c.Query("state"); state != "" {
+			whereClause += fmt.Sprintf(" AND state = $%d", argCounter)
+			args = append(args, state)
+			argCounter++
+		}
 
-    if city := c.Query("city"); city != "" {
-        whereClause += fmt.Sprintf(" AND city = $%d", argCounter)
-        args = append(args, city)
-        argCounter++
-    }
+		if city := c.Query("city"); city != "" {
+			whereClause += fmt.Sprintf(" AND city = $%d", argCounter)
+			args = append(args, city)
+			argCounter++
+		}
 
-    // Get filtered count
-    var total int
-    countQuery := fmt.Sprintf("SELECT COUNT(*) FROM rioters %s", whereClause)
-    if err := db.QueryRow(countQuery, args...).Scan(&total); err != nil {
-        log.Printf("Count query error: %v", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
-        return
-    }
+		// Get filtered count
+		var total int
+		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM rioters %s", whereClause)
+		if err := db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+			log.Printf("Count query error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
 
-    // Build the data query using same WHERE clause
-    query := fmt.Sprintf(`
+		// Build the data query using same WHERE clause
+		query := fmt.Sprintf(`
         SELECT id, last_name, first_name, middle_name, summary, 
                jurisdiction, charges, charges_link, case_status, 
                case_updates, violence_assault, conspiracy, theft, 
@@ -207,77 +235,76 @@ router.GET("/api/rioters", func(c *gin.Context) {
         %s
     `, whereClause)
 
-    // Add ORDER BY
-    query += " ORDER BY id"
+		// Add ORDER BY
+		query += " ORDER BY id"
 
-    // Add pagination only if not fetching all
-    if !fetchAll {
-        pageStr := c.DefaultQuery("page", "1")
-        pageSizeStr := c.DefaultQuery("page_size", "500")
+		// Add pagination only if not fetching all
+		if !fetchAll {
+			pageStr := c.DefaultQuery("page", "1")
+			pageSizeStr := c.DefaultQuery("page_size", "500")
 
-        page, err := strconv.Atoi(pageStr)
-        if err != nil || page < 1 {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
-            return
-        }
+			page, err := strconv.Atoi(pageStr)
+			if err != nil || page < 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page number"})
+				return
+			}
 
-        pageSize, err := strconv.Atoi(pageSizeStr)
-        if err != nil || pageSize < 1 || pageSize > 1601 {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size (1-1000)"})
-            return
-        }
+			pageSize, err := strconv.Atoi(pageSizeStr)
+			if err != nil || pageSize < 1 || pageSize > 1601 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid page size (1-1000)"})
+				return
+			}
 
-        offset := (page - 1) * pageSize
-        query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
-        args = append(args, pageSize, offset)
-    }
+			offset := (page - 1) * pageSize
+			query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
+			args = append(args, pageSize, offset)
+		}
 
-    // Execute the query
-    rows, err := db.Query(query, args...)
-    if err != nil {
-        log.Printf("Database query error: %v", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-    defer rows.Close()
+		// Execute the query
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			log.Printf("Database query error: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer rows.Close()
 
-    var rioters []Rioter
-    for rows.Next() {
-        var r Rioter
-        if err := rows.Scan(
-            &r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
-            &r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
-            &r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
-            &r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
-            &r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
-            &r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
-            &r.PhotoName, &r.Longitude, &r.Latitude,
-        ); err != nil {
-            log.Printf("Row scan error: %v", err)
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return
-        }
-        rioters = append(rioters, r)
-    }
+		var rioters []Rioter
+		for rows.Next() {
+			var r Rioter
+			if err := rows.Scan(
+				&r.ID, &r.LastName, &r.FirstName, &r.MiddleName,
+				&r.Summary, &r.Jurisdiction, &r.Charges, &r.ChargesLink,
+				&r.CaseStatus, &r.CaseUpdates, &r.ViolenceAssault,
+				&r.Conspiracy, &r.Theft, &r.Property, &r.Age, &r.City,
+				&r.State, &r.MilitaryLE, &r.Extremist, &r.InspiredTrump,
+				&r.Sentenced, &r.Commuted, &r.Pardoned, &r.ArrestDate,
+				&r.PhotoName, &r.Longitude, &r.Latitude,
+			); err != nil {
+				log.Printf("Row scan error: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			rioters = append(rioters, r)
+		}
 
-    if fetchAll {
-        c.JSON(http.StatusOK, gin.H{
-            "data":  rioters,
-            "total": total,
-        })
-    } else {
-        page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-        pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
-        c.JSON(http.StatusOK, gin.H{
-            "data":      rioters,
-            "total":     total,
-            "page":      page,
-            "page_size": pageSize,
-            "pages":     int(math.Ceil(float64(total) / float64(pageSize))),
-        })
-    }
-})
-
+		if fetchAll {
+			c.JSON(http.StatusOK, gin.H{
+				"data":  rioters,
+				"total": total,
+			})
+		} else {
+			page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+			pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "50"))
+			c.JSON(http.StatusOK, gin.H{
+				"data":      rioters,
+				"total":     total,
+				"page":      page,
+				"page_size": pageSize,
+				"pages":     int(math.Ceil(float64(total) / float64(pageSize))),
+			})
+		}
+	})
 
 	// SEARCH DATABASE FOR RIOTERS with "term" query parameter
 	router.GET("/api/search/suggestions", func(c *gin.Context) {
@@ -576,67 +603,178 @@ router.GET("/api/rioters", func(c *gin.Context) {
 	})
 
 	// POST endpoint to add a new rioter record
-	router.POST("/api/rioters", func(c *gin.Context) {
-		var newRioter NewRioterRequest
-		if err := c.ShouldBindJSON(&newRioter); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+// POST endpoint to add a new rioter record
+router.POST("/api/rioters", func(c *gin.Context) {
+    var newRioter NewRioterRequest
+    if err := c.ShouldBindJSON(&newRioter); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
 
-		// Safely extract city and state (using empty string if nil)
-		city := ""
-		if newRioter.City != nil {
-			city = *newRioter.City
-		}
-		state := ""
-		if newRioter.State != nil {
-			state = *newRioter.State
-		}
+    // Safely extract city and state (using empty string if nil)
+    city := ""
+    if newRioter.City != nil {
+        city = *newRioter.City
+    }
+    state := ""
+    if newRioter.State != nil {
+        state = *newRioter.State
+    }
 
-		// Call your Mapbox geocoding function to get coordinates.
-		lat, lon, err := geocode.GeocodeWithMapbox(city, state)
-		if err != nil {
-			// You might want to log the error and decide whether to proceed without coordinates.
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding error: " + err.Error()})
-			return
-		}
+    // Compute the photo name based on last_name, first_name, and middle_name.
+    // For example: "alam-zachary-jordan.jpg"
+    photoName := strings.ToLower(newRioter.LastName) + "-" + strings.ToLower(newRioter.FirstName)
+    if newRioter.MiddleName != nil && *newRioter.MiddleName != "" {
+        photoName += "-" + strings.ToLower(*newRioter.MiddleName)
+    }
+    photoName += ".jpg"
 
-		// Optionally log the coordinates for debugging.
-		log.Printf("Geocoded coordinates for %s, %s: lat=%v, lon=%v", city, state, *lat, *lon)
+    // Call your Mapbox geocoding function to get coordinates.
+    lat, lon, err := geocode.GeocodeWithMapbox(city, state)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding error: " + err.Error()})
+        return
+    }
 
-		// Insert the new record using the computed lat/lon.
-		var newID int
-		err = db.QueryRow(`
+    log.Printf("Geocoded coordinates for %s, %s: lat=%v, lon=%v", city, state, *lat, *lon)
+
+    // Insert the new record using the computed lat/lon and photoName.
+    var newID int
+    err = db.QueryRow(`
         INSERT INTO rioters (
             last_name, first_name, middle_name, summary, jurisdiction, charges,
             charges_link, case_status, case_updates, violence_assault, conspiracy,
             theft, property, age, city, state, military_le, extremist, inspired_trump,
-            latitude, longitude, geom
+            latitude, longitude, photo_name, geom
         )
         VALUES (
             $1, $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11,
             $12, $13, $14, $15, $16, $17, $18, $19,
-            $20, $21,
+            $20, $21, $22,
             ST_SetSRID(ST_MakePoint($21, $20), 4326)
         )
         RETURNING id
     `,
-			newRioter.LastName, newRioter.FirstName, newRioter.MiddleName, newRioter.Summary, newRioter.Jurisdiction, newRioter.Charges,
-			newRioter.ChargesLink, newRioter.CaseStatus, newRioter.CaseUpdates, newRioter.ViolenceAssault, newRioter.Conspiracy,
-			newRioter.Theft, newRioter.Property, newRioter.Age, newRioter.City, newRioter.State, newRioter.MilitaryLE, newRioter.Extremist, newRioter.InspiredTrump,
-			lat, lon,
-		).Scan(&newID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+        newRioter.LastName, newRioter.FirstName, newRioter.MiddleName, newRioter.Summary, newRioter.Jurisdiction, newRioter.Charges,
+        newRioter.ChargesLink, newRioter.CaseStatus, newRioter.CaseUpdates, newRioter.ViolenceAssault, newRioter.Conspiracy,
+        newRioter.Theft, newRioter.Property, newRioter.Age, newRioter.City, newRioter.State, newRioter.MilitaryLE, newRioter.Extremist, newRioter.InspiredTrump,
+        lat, lon, photoName,
+    ).Scan(&newID)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
 
-		c.JSON(http.StatusCreated, gin.H{
-			"status": "success",
-			"id":     newID,
-		})
-	})
+    c.JSON(http.StatusCreated, gin.H{
+        "status": "success",
+        "id":     newID,
+    })
+})
+	// PUT endpoint to update a rioter record
+router.PUT("/api/rioters/:id", func(c *gin.Context) {
+    id := c.Param("id")
+    var updatedRioter Rioter
+    if err := c.ShouldBindJSON(&updatedRioter); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    // Recompute photo_name from the updated fields.
+    // (Assuming updatedRioter has the new values.)
+    photoName := strings.ToLower(updatedRioter.LastName) + "-" + strings.ToLower(updatedRioter.FirstName)
+    if updatedRioter.MiddleName != nil && *updatedRioter.MiddleName != "" {
+        photoName += "-" + strings.ToLower(*updatedRioter.MiddleName)
+    }
+    photoName += ".jpg"
+
+    // Update the record in the database.
+    _, err := db.Exec(`
+        UPDATE rioters SET
+            last_name = $1,
+            first_name = $2,
+            middle_name = $3,
+            summary = $4,
+            jurisdiction = $5,
+            charges = $6,
+            charges_link = $7,
+            case_status = $8,
+            case_updates = $9,
+            violence_assault = $10,
+            conspiracy = $11,
+            theft = $12,
+            property = $13,
+            age = $14,
+            city = $15,
+            state = $16,
+            military_le = $17,
+            extremist = $18,
+            inspired_trump = $19,
+            sentenced = $20,
+            commuted = $21,
+            pardoned = $22,
+            arrest_date = $23,
+            photo_name = $24,
+            latitude = $25,
+            longitude = $26,
+            geom = ST_SetSRID(ST_MakePoint($26, $25), 4326)
+        WHERE id = $27
+    `,
+        updatedRioter.LastName, updatedRioter.FirstName, updatedRioter.MiddleName, updatedRioter.Summary, updatedRioter.Jurisdiction, updatedRioter.Charges,
+        updatedRioter.ChargesLink, updatedRioter.CaseStatus, updatedRioter.CaseUpdates, updatedRioter.ViolenceAssault, updatedRioter.Conspiracy,
+        updatedRioter.Theft, updatedRioter.Property, updatedRioter.Age, updatedRioter.City, updatedRioter.State, updatedRioter.MilitaryLE, updatedRioter.Extremist, updatedRioter.InspiredTrump,
+        updatedRioter.Sentenced, updatedRioter.Commuted, updatedRioter.Pardoned, updatedRioter.ArrestDate, photoName, updatedRioter.Latitude, updatedRioter.Longitude, id,
+    )
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "status": "success",
+        "id":     id,
+    })
+})
 	// Start server
+    router.GET("/api/rioters/:id", func(c *gin.Context) {
+    id := c.Param("id")
+
+    // Query to get a single rioter
+    query := `
+        SELECT id, last_name, first_name, middle_name, summary, 
+               jurisdiction, charges, charges_link, case_status, 
+               case_updates, violence_assault, conspiracy, theft, 
+               property, age, city, state, military_le, extremist, 
+               inspired_trump, sentenced, commuted, pardoned, 
+               arrest_date, photo_name,
+               ST_X(geom::geometry) as longitude,
+               ST_Y(geom::geometry) as latitude
+        FROM rioters
+        WHERE id = $1
+    `
+
+    var rioter Rioter
+    err := db.QueryRow(query, id).Scan(
+        &rioter.ID, &rioter.LastName, &rioter.FirstName, &rioter.MiddleName,
+        &rioter.Summary, &rioter.Jurisdiction, &rioter.Charges, &rioter.ChargesLink,
+        &rioter.CaseStatus, &rioter.CaseUpdates, &rioter.ViolenceAssault,
+        &rioter.Conspiracy, &rioter.Theft, &rioter.Property, &rioter.Age, &rioter.City,
+        &rioter.State, &rioter.MilitaryLE, &rioter.Extremist, &rioter.InspiredTrump,
+        &rioter.Sentenced, &rioter.Commuted, &rioter.Pardoned, &rioter.ArrestDate,
+        &rioter.PhotoName, &rioter.Longitude, &rioter.Latitude,
+    )
+
+    if err != nil {
+        if err == sql.ErrNoRows {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Rioter not found"})
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, rioter)
+})
+
 	router.Run(":8080")
 }

@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-full bg-white shadow rounded-lg p-4">
+  <div class="bg-white shadow rounded-lg">
     <!-- <h2 class="text-xl font-semibold mb-4">Rioters Locations</h2> -->
     <div ref="mapContainer" class="w-full h-[100vh] rounded-lg" />
   </div>
@@ -27,8 +27,10 @@ const createPopupContent = (rioter) => {
           ${rioter.city ? rioter.city + ", " : ""}${rioter.state || ""}
         </div>
       </div>
+
       ${rioter.charges ? `<small class="text-gray-600">${rioter.charges}</small>` : ""}
-    </div>
+    
+      </div>
   `;
 };
 const handleResize = () => {

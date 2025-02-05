@@ -67,6 +67,12 @@
                       {{ [rioter.city, rioter.state].filter(Boolean).join(", ") }}
                     </p>
                   </div>
+                  <button
+                    @click.stop="navigateToEdit(rioter)"
+                    class="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                  >
+                    Edit
+                  </button>
                 </div>
               </li>
             </ul>
@@ -304,6 +310,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import SearchFilters from "./components/SearchFilters.vue";
+import { useRouter } from "vue-router";
 import RiotersMap from "./components/RiotersMap.vue";
 // import BasePagination from "./components/BasePagination.vue"; // Updated import
 import api from "./api"; // Only one import
@@ -319,6 +326,10 @@ import Navigation from "./components/Navigation.vue";
 const stateCounts = ref({}); // Store state counts
 // const selectedState = ref(""); // Stores the selected state
 // const rioterCount = ref(null); // Stores the count of rioters in the selected state
+const router = useRouter();
+const navigateToEdit = (rioter) => {
+  router.push(`/rioter/${rioter.id}/edit`);
+};
 
 const fetchStateCounts = async () => {
   try {
@@ -582,15 +593,24 @@ const handleFiltersChange = (filters) => {
 
   fetchRioters(); // Re-fetch data
 };
-const getCoordinates = () => {
+const getCoordinates = async () => {
+  if (!navigator.geolocation) {
+    throw new Error("Geolocation is not supported by this browser.");
+  }
+
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
-      (position) =>
+      (position) => {
         resolve({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        }),
-      (error) => reject(error)
+        });
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        reject(error);
+      },
+      { enableHighAccuracy: true, timeout: 1000, maximumAge: 0 } // Better accuracy on iOS
     );
   });
 };
@@ -716,19 +736,31 @@ const fetchRioters = async (append = false) => {
 //   currentPage.value = newPage;
 //   fetchRioters();
 // };
-
+// const baseUrl = process.env.VUE_APP_API_URL;
+const photoUrl = "http://192.168.1.158:8080";
 const getImageUrl = (photoName) => {
-  const baseUrl = "http://localhost:8080";
+  // const baseUrl = "http://localhost:8080";
   return photoName?.trim()
-    ? `${baseUrl}/photos/${encodeURIComponent(photoName)}`
-    : `${baseUrl}/photos/placeholder.jpg`;
+    ? `${photoUrl}/photos/${encodeURIComponent(photoName)}`
+    : `${photoUrl}/photos/placeholder.jpg`;
 };
 
 const handleImageError = (event) => {
-  event.target.src = "http://localhost:8080/photos/placeholder.jpg";
+  event.target.src = `${photoUrl}/photos/placeholder.jpg`;
 };
 const selectRioter = (rioter) => {
-  selectedRioter.value = rioter; // Update the selected rioter
+  try {
+    if (fetchMode.value === "nearby") {
+      // Fetch complete details when selecting a rioter in nearby mode
+      const response = api.get(`/rioters/${rioter.id}`);
+      selectedRioter.value = response.data;
+    } else {
+      selectedRioter.value = rioter;
+    }
+  } catch (error) {
+    console.error("Error fetching rioter details:", error);
+  }
+
   showMobileSidebar.value = false; // Close sidebar on mobile
 
   // Scroll to the selected rioter in the list

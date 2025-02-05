@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import MapView from '../views/MapView.vue'
 import NewRioterView from '../views/NewRioterView.vue'  // <-- Import the new view
+import EditRioterView from '@/views/EditRioterView.vue'
 
 const routes = [
   {
@@ -18,7 +19,18 @@ const routes = [
     path: '/new',
     name: 'new',
     component: NewRioterView  // <-- New route for the form
-  }
+  },
+  {
+    path: '/rioter/:id/edit',
+    name: 'editRioter',
+    component: EditRioterView
+  },
+  // {
+  //   path: '/update',
+  //   name: 'update',
+  //   component: UpdateRioterView  // <-- New route for the form
+  // }
+
 ]
 
 const router = createRouter({
