@@ -11,10 +11,27 @@
           class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           @input="debounceSearch"
           @change="emitFilters"
+          @focus="showSuggestions = true"
+          @blur="hideSuggestionsWithDelay"
         />
         <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
-      </div>
 
+        <!-- 🔽 Suggestions Dropdown -->
+        <ul
+          v-if="showSuggestions && searchSuggestions.length"
+          class="absolute left-0 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 z-50"
+        >
+          <li
+            v-for="(suggestion, index) in searchSuggestions"
+            :key="index"
+            class="p-2 hover:bg-blue-100 cursor-pointer"
+            @mousedown.prevent="selectSuggestion(suggestion)"
+          >
+            <span v-html="suggestion"></span>
+            <!-- Highlighted results -->
+          </li>
+        </ul>
+      </div>
       <!-- Reset Filters Button -->
       <button
         class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
@@ -105,6 +122,9 @@ import api from "../api"; // Ensure this is your API file
 // Define the emit function
 const emit = defineEmits(["filters-changed"]);
 const debounceTimeout = ref(null);
+const showSuggestions = ref(false); // Controls dropdown visibility
+const searchSuggestions = ref([]); // Stores API search results
+
 const loading = ref(false); // Add loading state
 const stateCounts = ref({}); // Stores the count of rioters in each state
 const selectedState = ref(""); // Tracks selected state
@@ -182,6 +202,34 @@ const affiliationOptions = ref({
   extremist: "Extremist Orgs",
   sentenced: "Sentenced",
 });
+// Fetch suggestions from backend
+const fetchSearchSuggestions = async () => {
+  if (!filters.value.searchText.trim()) {
+    searchSuggestions.value = [];
+    return;
+  }
+
+  try {
+    const response = await api.get(
+      `/search/suggestions?term=${encodeURIComponent(filters.value.searchText)}`
+    );
+    searchSuggestions.value = response.data;
+  } catch (error) {
+    console.error("Error fetching search suggestions:", error);
+  }
+};
+// Apply the selected suggestion
+const selectSuggestion = (suggestion) => {
+  console.log("Clicked suggestion:", suggestion); // Debugging
+
+  filters.value.searchText = suggestion.replace(/<\/?mark>/g, ""); // Remove HTML highlighting
+  searchSuggestions.value = [];
+  showSuggestions.value = false;
+
+  console.log("Updated filters:", filters.value); // Debugging
+  emit("filters-changed", filters.value); // Notify parent
+};
+
 // Fetch the state counts from the backend
 const fetchStateCounts = async () => {
   try {
@@ -195,6 +243,7 @@ const fetchStateCounts = async () => {
 const emitFilters = () => {
   loading.value = true; // Show loading indicator
   setTimeout(() => {
+    showSuggestions.value = false; // Hide dropdown
     const payload = {
       searchText: filters.value.searchText.trim(),
       state: filters.value.state,
@@ -241,12 +290,20 @@ const resetFilters = async () => {
 const debounceSearch = () => {
   clearTimeout(debounceTimeout.value);
   if (!filters.value.searchText.trim()) {
+    searchSuggestions.value = [];
     emitFilters();
     return;
   }
   debounceTimeout.value = setTimeout(() => {
-    emitFilters();
+    fetchSearchSuggestions();
   }, 300);
+};
+
+// Hide suggestions after a short delay to allow click selection
+const hideSuggestionsWithDelay = () => {
+  setTimeout(() => {
+    showSuggestions.value = false;
+  }, 200);
 };
 
 // Watch for filter changes

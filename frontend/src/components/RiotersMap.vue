@@ -10,6 +10,7 @@ import { ref, onMounted, watch, defineProps, onBeforeUnmount } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getImageUrl } from "../utils/imageHandling";
+import { nextTick } from "vue";
 const emit = defineEmits(["marker-click"]);
 const MAPBOX_ACCESS_TOKEN = process.env.VUE_APP_MAPBOX_ACCESS_TOKEN;
 const createPopupContent = (rioter) => {
@@ -27,8 +28,8 @@ const createPopupContent = (rioter) => {
           ${rioter.city ? rioter.city + ", " : ""}${rioter.state || ""}
         </div>
       </div>
-
-      ${rioter.charges ? `<small class="text-gray-600">${rioter.charges}</small>` : ""}
+    
+      
     
       </div>
   `;
@@ -118,6 +119,31 @@ const updateMarkers = () => {
   }, {});
 
   const seenCoords = new Map();
+  const flyToMarker = (rioter) => {
+    if (!map.value || !rioter || !rioter.latitude || !rioter.longitude) return;
+
+    console.log("🛫 Flying to:", rioter.first_name, rioter.last_name);
+    map.value.flyTo({
+      center: [rioter.longitude, rioter.latitude],
+      zoom: 10,
+      essential: true,
+    });
+  };
+
+  // Call it inside the watcher
+  watch(
+    () => props.selectedRioter,
+    (newSelectedRioter) => {
+      if (newSelectedRioter) {
+        console.log(
+          "📍 Centering map on:",
+          newSelectedRioter.first_name,
+          newSelectedRioter.last_name
+        );
+        flyToMarker(newSelectedRioter); // ✅ Call the function when a rioter is selected
+      }
+    }
+  );
 
   Object.values(groupedRioters).forEach((group) => {
     const isCluster = group.rioters.length > 1;
@@ -175,21 +201,39 @@ watch(() => props.rioters, updateMarkers, { deep: true });
 
 watch(
   () => props.selectedRioter,
-  (newSelectedRioter) => {
-    // Close all existing popups first
-    markers.value.forEach((marker) => {
-      const popup = marker.getPopup();
-      if (popup.isOpen()) {
-        popup.remove();
-      }
-    });
+  async (newSelectedRioter) => {
+    if (!newSelectedRioter || markers.value.length === 0) return;
 
-    // If there's a new selection, open its popup
-    if (newSelectedRioter && markers.value.length) {
-      const marker = markers.value.find((m) => m._rioter?.id === newSelectedRioter.id);
-      if (marker) {
-        marker.togglePopup();
-      }
+    console.log(
+      "Trying to open popup for:",
+      newSelectedRioter.first_name,
+      newSelectedRioter.last_name
+    );
+
+    await nextTick(); // ✅ Wait for DOM updates
+
+    // Close all popups first
+    markers.value.forEach((marker) => marker.getPopup().remove());
+
+    // Find the correct marker
+    const marker = markers.value.find((m) => m._rioter?.id === newSelectedRioter.id);
+    if (marker) {
+      console.log(
+        "✅ Found marker for:",
+        newSelectedRioter.first_name,
+        newSelectedRioter.last_name
+      );
+
+      // Ensure the popup is re-created and opened properly
+      const popup = new mapboxgl.Popup({ maxWidth: "300px" })
+        .setLngLat([newSelectedRioter.longitude, newSelectedRioter.latitude])
+        .setHTML(createPopupContent(newSelectedRioter))
+        .addTo(map);
+
+      marker.setPopup(popup); // ✅ Ensure popup is set on the marker
+      marker.togglePopup(); // ✅ Open it
+    } else {
+      console.warn("⚠️ Marker not found for selected rioter:", newSelectedRioter);
     }
   }
 );

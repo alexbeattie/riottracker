@@ -138,7 +138,7 @@
               :bounds="manualBounds || mapBounds"
               :selected-rioter="selectedRioter"
               @marker-click="handleMarkerClick"
-              :state-counts="stateCounts"
+              @center-map="flyToMarker"
             />
           </div>
         </div>
@@ -330,6 +330,50 @@ const router = useRouter();
 const navigateToEdit = (rioter) => {
   router.push(`/rioter/${rioter.id}/edit`);
 };
+const emit = defineEmits(["filters-changed", "center-map"]);
+// const emit("center-map", { lat, lng });
+const markers = ref([]); // Store map markers
+const filters = ref({}); // Store active filters
+
+const fetchMarkers = async () => {
+  try {
+    const response = await api.get("/rioters", { params: filters.value });
+    markers.value = response.data.data;
+  } catch (error) {
+    console.error("Error fetching markers:", error);
+  }
+};
+
+// 🛑 Watch for search/filter changes and refresh map markers
+// Ensure this function is used when a search result is selected
+watch(
+  filters,
+  async (newFilters) => {
+    console.log("Applying filters:", newFilters);
+
+    await fetchMarkers();
+
+    // 🔥 If a specific person was searched, pan the map
+    if (newFilters.searchText && markers.value.length === 1) {
+      const rioter = markers.value[0];
+      selectedRioter.value = rioter; // ✅ Ensure it's set
+      console.log("Updated selectedRioter:", selectedRioter.value);
+
+      centerMap(rioter.latitude, rioter.longitude); // ✅ Now used
+    }
+  },
+  { deep: true }
+);
+
+// 🔥 Function to update map center (assumes Mapbox component exposes `setCenter`)
+const centerMap = (lat, lng) => {
+  if (lat && lng) {
+    console.log("📍 Centering map on:", lat, lng);
+    emit("center-map", { lat, lng }); // ✅ Emit event
+  }
+};
+
+onMounted(fetchMarkers);
 
 const fetchStateCounts = async () => {
   try {
@@ -771,7 +815,13 @@ const selectRioter = (rioter) => {
 };
 
 const handleMarkerClick = (rioter) => {
+  console.log("📌 Marker clicked:", rioter);
   selectRioter(rioter);
+
+  // 🔥 Ensure the popup opens
+  emit("center-map", { lat: rioter.latitude, lng: rioter.longitude });
+
+  // Scroll to the list item
   const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
   if (rioterElement) {
     rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });

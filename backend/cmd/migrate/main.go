@@ -1,26 +1,29 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"path/filepath"
 	"rioters/backend/pkg/geocode"
 	"strconv" // ✅ New import
 	"strings"
 	"time"
-    "errors"
-	"path/filepath"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 )
+
 // NullBool wraps sql.NullBool to support JSON unmarshaling.
 type NullBool struct {
 	sql.NullBool
@@ -114,9 +117,36 @@ func (nb NullBool) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(nb.Bool)
 }
+// var ctx = context.Background()
 
+
+func getCachedData(key string) (string, error) {
+    val, err := rdb.Get(ctx, key).Result()
+    if err == redis.Nil {
+        return "", nil // Cache miss
+    }
+    return val, err
+}
+
+func setCachedData(key string, value string, ttl time.Duration) error {
+    return rdb.Set(ctx, key, value, ttl).Err()
+}
+var (
+    ctx = context.Background()
+    rdb *redis.Client // Declare Redis client globally
+)
 func main() {
-	// Connect to PostgreSQL
+    rdb = redis.NewClient(&redis.Options{
+        Addr: "localhost:6379", // Update if Redis is remote
+        Password: "",           // No password by default
+        DB: 0,                  // Default DB
+    })
+
+    // Test Redis connection
+    if err := rdb.Ping(ctx).Err(); err != nil {
+        log.Fatalf("Failed to connect to Redis: %v", err)
+    }
+    log.Println("Connected to Redis")	// Connect to PostgreSQL
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found. Using existing environment variables.")
 	}
@@ -126,7 +156,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Database connection error:", err)
 	}
-	defer db.Close()
+	
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
@@ -177,7 +207,7 @@ func main() {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:8081", "http://192.168.1.82:8081","http://192.168.1.158:8081"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // Add OPTIONS here
-		AllowHeaders:     []string{"Origin", "Content-Type"},                  // Add Content-Type here
+        AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -256,8 +286,9 @@ func main() {
 			}
 
 			offset := (page - 1) * pageSize
-			query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
-			args = append(args, pageSize, offset)
+            args = append(args, pageSize, offset)
+            query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+
 		}
 
 		// Execute the query
@@ -368,6 +399,14 @@ func main() {
 	})
 
 	router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
+        cacheKey := "count_by_state"
+    
+        // Check Redis cache
+        cached, err := getCachedData(cacheKey)
+        if err == nil && cached != "" {
+            c.JSON(http.StatusOK, json.RawMessage(cached)) // Serve cached data
+            return
+        }
 		rows, err := db.Query("SELECT state, COUNT(*) FROM rioters GROUP BY state") // ✅ Use 'state' instead of 'location'
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -385,14 +424,23 @@ func main() {
 			}
 			stateCounts[state] = count
 		}
+         // Cache the result for 10 minutes
+        jsonData, _ := json.Marshal(stateCounts)
+        setCachedData(cacheKey, string(jsonData), 10*time.Minute)
 
 		c.JSON(http.StatusOK, stateCounts)
 	})
 	router.GET("/api/rioters/nearby", func(c *gin.Context) {
-		latStr := c.Query("lat")
-		lngStr := c.Query("lng")
-		radiusStr := c.DefaultQuery("radius", "50000") // Default: 50km
+        latStr, lngStr := c.Query("lat"), c.Query("lng")
+        radiusStr := c.DefaultQuery("radius", "50000")
 
+        cacheKey := fmt.Sprintf("nearby_%s_%s_%s", latStr, lngStr, radiusStr)
+           // Check Redis cache first
+        cached, err := getCachedData(cacheKey)
+            if err == nil && cached != "" {
+            c.JSON(http.StatusOK, json.RawMessage(cached))
+           return
+        }
 		// Convert query parameters to float64
 		lat, err := strconv.ParseFloat(latStr, 64)
 		if err != nil {
@@ -481,6 +529,8 @@ func main() {
 			return
 		}
 		log.Printf("Successfully fetched %d nearby rioters", len(nearbyRioters))
+        jsonData, _ := json.Marshal(nearbyRioters)
+        setCachedData(cacheKey, string(jsonData), 10*time.Minute)
 
 		c.JSON(http.StatusOK, nearbyRioters)
 	})
@@ -496,7 +546,7 @@ func main() {
 			return
 		}
 
-		gridSize := fmt.Sprintf("%f", 0.01/zoom) // ✅ Now zoom is correctly converted
+        gridSize := 0.01 / math.Pow(2, zoom) // Properly scale grid size by zoom
 
 		log.Printf("Zoom Level: %f, Grid Size: %s", zoom, gridSize)
 
@@ -772,9 +822,14 @@ router.PUT("/api/rioters/:id", func(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
-
+     defer func() {
+        if db != nil {
+            db.Close()
+            log.Println("Database connection closed.")
+        }
+    }()
     c.JSON(http.StatusOK, rioter)
 })
-
+   
 	router.Run(":8080")
 }
