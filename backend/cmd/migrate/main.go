@@ -53,33 +53,33 @@ type NewRioterRequest struct {
 
 // Define the Rioter struct
 type Rioter struct {
-	ID              int       `json:"id"`
-	LastName        string    `json:"last_name"`
-	FirstName       string    `json:"first_name"`
-	MiddleName      *string   `json:"middle_name"`
-	Summary         *string   `json:"summary"`
-	Jurisdiction    *string   `json:"jurisdiction"`
-	Charges         *string   `json:"charges"`
-	ChargesLink     *string   `json:"charges_link"`
-	CaseStatus      *string   `json:"case_status"`
-	CaseUpdates     *string   `json:"case_updates"`
-	ViolenceAssault NullBool  `json:"violence_assault"`
-	Conspiracy      NullBool  `json:"conspiracy"`
-	Theft           NullBool  `json:"theft"`
-	Property        NullBool  `json:"property"`
-	Age             *int      `json:"age"`
-	City            *string   `json:"city"`
-	State           *string   `json:"state"`
-	MilitaryLE      NullBool  `json:"military_le"`
-	Extremist       NullBool  `json:"extremist"`
-	InspiredTrump   NullBool  `json:"inspired_trump"`
-	Sentenced       NullBool  `json:"sentenced"`
-	Commuted        NullBool  `json:"commuted"`
-	Pardoned        NullBool  `json:"pardoned"`
+	ID              int        `json:"id"`
+	LastName        string     `json:"last_name"`
+	FirstName       string     `json:"first_name"`
+	MiddleName      *string    `json:"middle_name"`
+	Summary         *string    `json:"summary"`
+	Jurisdiction    *string    `json:"jurisdiction"`
+	Charges         *string    `json:"charges"`
+	ChargesLink     *string    `json:"charges_link"`
+	CaseStatus      *string    `json:"case_status"`
+	CaseUpdates     *string    `json:"case_updates"`
+	ViolenceAssault NullBool   `json:"violence_assault"`
+	Conspiracy      NullBool   `json:"conspiracy"`
+	Theft           NullBool   `json:"theft"`
+	Property        NullBool   `json:"property"`
+	Age             *int       `json:"age"`
+	City            *string    `json:"city"`
+	State           *string    `json:"state"`
+	MilitaryLE      NullBool   `json:"military_le"`
+	Extremist       NullBool   `json:"extremist"`
+	InspiredTrump   NullBool   `json:"inspired_trump"`
+	Sentenced       NullBool   `json:"sentenced"`
+	Commuted        NullBool   `json:"commuted"`
+	Pardoned        NullBool   `json:"pardoned"`
 	ArrestDate      *time.Time `json:"arrest_date"`
-	PhotoName       *string   `json:"photo_name"`
-	Latitude        *float64  `json:"latitude"`
-	Longitude       *float64  `json:"longitude"`
+	PhotoName       *string    `json:"photo_name"`
+	Latitude        *float64   `json:"latitude"`
+	Longitude       *float64   `json:"longitude"`
 }
 
 type NearbyRioter struct {
@@ -93,6 +93,7 @@ type NearbyRioter struct {
 	Latitude  *float64 `json:"latitude"`
 	Distance  float64  `json:"distance"`
 }
+
 func (nb *NullBool) UnmarshalJSON(data []byte) error {
 	// If the value is null, mark it as invalid.
 	if string(data) == "null" {
@@ -117,36 +118,38 @@ func (nb NullBool) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(nb.Bool)
 }
+
 // var ctx = context.Background()
 
-
 func getCachedData(key string) (string, error) {
-    val, err := rdb.Get(ctx, key).Result()
-    if err == redis.Nil {
-        return "", nil // Cache miss
-    }
-    return val, err
+	val, err := rdb.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil // Cache miss
+	}
+	return val, err
 }
 
 func setCachedData(key string, value string, ttl time.Duration) error {
-    return rdb.Set(ctx, key, value, ttl).Err()
+	return rdb.Set(ctx, key, value, ttl).Err()
 }
-var (
-    ctx = context.Background()
-    rdb *redis.Client // Declare Redis client globally
-)
-func main() {
-    rdb = redis.NewClient(&redis.Options{
-        Addr: "localhost:6379", // Update if Redis is remote
-        Password: "",           // No password by default
-        DB: 0,                  // Default DB
-    })
 
-    // Test Redis connection
-    if err := rdb.Ping(ctx).Err(); err != nil {
-        log.Fatalf("Failed to connect to Redis: %v", err)
-    }
-    log.Println("Connected to Redis")	// Connect to PostgreSQL
+var (
+	ctx = context.Background()
+	rdb *redis.Client // Declare Redis client globally
+)
+
+func main() {
+	rdb = redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379", // Update if Redis is remote
+		Password: "",               // No password by default
+		DB:       0,                // Default DB
+	})
+
+	// Test Redis connection
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	log.Println("Connected to Redis") // Connect to PostgreSQL
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found. Using existing environment variables.")
 	}
@@ -156,7 +159,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Database connection error:", err)
 	}
-	
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
@@ -205,9 +207,9 @@ func main() {
 
 	// Set up CORS first
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8081", "http://192.168.1.82:8081","http://192.168.1.158:8081"},
+		AllowOrigins:     []string{"http://localhost:8081", "http://localhost:8080", "http://192.168.1.82:8081", "http://192.168.1.158:8081"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // Add OPTIONS here
-        AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length", "Cache-Control"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -286,8 +288,8 @@ func main() {
 			}
 
 			offset := (page - 1) * pageSize
-            args = append(args, pageSize, offset)
-            query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args))
+			args = append(args, pageSize, offset)
+			query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 
 		}
 
@@ -399,14 +401,14 @@ func main() {
 	})
 
 	router.GET("/api/rioters/count-by-state", func(c *gin.Context) {
-        cacheKey := "count_by_state"
-    
-        // Check Redis cache
-        cached, err := getCachedData(cacheKey)
-        if err == nil && cached != "" {
-            c.JSON(http.StatusOK, json.RawMessage(cached)) // Serve cached data
-            return
-        }
+		cacheKey := "count_by_state"
+
+		// Check Redis cache
+		cached, err := getCachedData(cacheKey)
+		if err == nil && cached != "" {
+			c.JSON(http.StatusOK, json.RawMessage(cached)) // Serve cached data
+			return
+		}
 		rows, err := db.Query("SELECT state, COUNT(*) FROM rioters GROUP BY state") // ✅ Use 'state' instead of 'location'
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -424,23 +426,23 @@ func main() {
 			}
 			stateCounts[state] = count
 		}
-         // Cache the result for 10 minutes
-        jsonData, _ := json.Marshal(stateCounts)
-        setCachedData(cacheKey, string(jsonData), 10*time.Minute)
+		// Cache the result for 10 minutes
+		jsonData, _ := json.Marshal(stateCounts)
+		setCachedData(cacheKey, string(jsonData), 10*time.Minute)
 
 		c.JSON(http.StatusOK, stateCounts)
 	})
 	router.GET("/api/rioters/nearby", func(c *gin.Context) {
-        latStr, lngStr := c.Query("lat"), c.Query("lng")
-        radiusStr := c.DefaultQuery("radius", "50000")
+		latStr, lngStr := c.Query("lat"), c.Query("lng")
+		radiusStr := c.DefaultQuery("radius", "50000")
 
-        cacheKey := fmt.Sprintf("nearby_%s_%s_%s", latStr, lngStr, radiusStr)
-           // Check Redis cache first
-        cached, err := getCachedData(cacheKey)
-            if err == nil && cached != "" {
-            c.JSON(http.StatusOK, json.RawMessage(cached))
-           return
-        }
+		cacheKey := fmt.Sprintf("nearby_%s_%s_%s", latStr, lngStr, radiusStr)
+		// Check Redis cache first
+		cached, err := getCachedData(cacheKey)
+		if err == nil && cached != "" {
+			c.JSON(http.StatusOK, json.RawMessage(cached))
+			return
+		}
 		// Convert query parameters to float64
 		lat, err := strconv.ParseFloat(latStr, 64)
 		if err != nil {
@@ -529,8 +531,8 @@ func main() {
 			return
 		}
 		log.Printf("Successfully fetched %d nearby rioters", len(nearbyRioters))
-        jsonData, _ := json.Marshal(nearbyRioters)
-        setCachedData(cacheKey, string(jsonData), 10*time.Minute)
+		jsonData, _ := json.Marshal(nearbyRioters)
+		setCachedData(cacheKey, string(jsonData), 10*time.Minute)
 
 		c.JSON(http.StatusOK, nearbyRioters)
 	})
@@ -546,7 +548,7 @@ func main() {
 			return
 		}
 
-        gridSize := 0.01 / math.Pow(2, zoom) // Properly scale grid size by zoom
+		gridSize := 0.01 / math.Pow(2, zoom) // Properly scale grid size by zoom
 
 		log.Printf("Zoom Level: %f, Grid Size: %s", zoom, gridSize)
 
@@ -653,44 +655,44 @@ func main() {
 	})
 
 	// POST endpoint to add a new rioter record
-// POST endpoint to add a new rioter record
-router.POST("/api/rioters", func(c *gin.Context) {
-    var newRioter NewRioterRequest
-    if err := c.ShouldBindJSON(&newRioter); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	// POST endpoint to add a new rioter record
+	router.POST("/api/rioters", func(c *gin.Context) {
+		var newRioter NewRioterRequest
+		if err := c.ShouldBindJSON(&newRioter); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-    // Safely extract city and state (using empty string if nil)
-    city := ""
-    if newRioter.City != nil {
-        city = *newRioter.City
-    }
-    state := ""
-    if newRioter.State != nil {
-        state = *newRioter.State
-    }
+		// Safely extract city and state (using empty string if nil)
+		city := ""
+		if newRioter.City != nil {
+			city = *newRioter.City
+		}
+		state := ""
+		if newRioter.State != nil {
+			state = *newRioter.State
+		}
 
-    // Compute the photo name based on last_name, first_name, and middle_name.
-    // For example: "alam-zachary-jordan.jpg"
-    photoName := strings.ToLower(newRioter.LastName) + "-" + strings.ToLower(newRioter.FirstName)
-    if newRioter.MiddleName != nil && *newRioter.MiddleName != "" {
-        photoName += "-" + strings.ToLower(*newRioter.MiddleName)
-    }
-    photoName += ".jpg"
+		// Compute the photo name based on last_name, first_name, and middle_name.
+		// For example: "alam-zachary-jordan.jpg"
+		photoName := strings.ToLower(newRioter.LastName) + "-" + strings.ToLower(newRioter.FirstName)
+		if newRioter.MiddleName != nil && *newRioter.MiddleName != "" {
+			photoName += "-" + strings.ToLower(*newRioter.MiddleName)
+		}
+		photoName += ".jpg"
 
-    // Call your Mapbox geocoding function to get coordinates.
-    lat, lon, err := geocode.GeocodeWithMapbox(city, state)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding error: " + err.Error()})
-        return
-    }
+		// Call your Mapbox geocoding function to get coordinates.
+		lat, lon, err := geocode.GeocodeWithMapbox(city, state)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Geocoding error: " + err.Error()})
+			return
+		}
 
-    log.Printf("Geocoded coordinates for %s, %s: lat=%v, lon=%v", city, state, *lat, *lon)
+		log.Printf("Geocoded coordinates for %s, %s: lat=%v, lon=%v", city, state, *lat, *lon)
 
-    // Insert the new record using the computed lat/lon and photoName.
-    var newID int
-    err = db.QueryRow(`
+		// Insert the new record using the computed lat/lon and photoName.
+		var newID int
+		err = db.QueryRow(`
         INSERT INTO rioters (
             last_name, first_name, middle_name, summary, jurisdiction, charges,
             charges_link, case_status, case_updates, violence_assault, conspiracy,
@@ -706,40 +708,40 @@ router.POST("/api/rioters", func(c *gin.Context) {
         )
         RETURNING id
     `,
-        newRioter.LastName, newRioter.FirstName, newRioter.MiddleName, newRioter.Summary, newRioter.Jurisdiction, newRioter.Charges,
-        newRioter.ChargesLink, newRioter.CaseStatus, newRioter.CaseUpdates, newRioter.ViolenceAssault, newRioter.Conspiracy,
-        newRioter.Theft, newRioter.Property, newRioter.Age, newRioter.City, newRioter.State, newRioter.MilitaryLE, newRioter.Extremist, newRioter.InspiredTrump,
-        lat, lon, photoName,
-    ).Scan(&newID)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+			newRioter.LastName, newRioter.FirstName, newRioter.MiddleName, newRioter.Summary, newRioter.Jurisdiction, newRioter.Charges,
+			newRioter.ChargesLink, newRioter.CaseStatus, newRioter.CaseUpdates, newRioter.ViolenceAssault, newRioter.Conspiracy,
+			newRioter.Theft, newRioter.Property, newRioter.Age, newRioter.City, newRioter.State, newRioter.MilitaryLE, newRioter.Extremist, newRioter.InspiredTrump,
+			lat, lon, photoName,
+		).Scan(&newID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
-    c.JSON(http.StatusCreated, gin.H{
-        "status": "success",
-        "id":     newID,
-    })
-})
+		c.JSON(http.StatusCreated, gin.H{
+			"status": "success",
+			"id":     newID,
+		})
+	})
 	// PUT endpoint to update a rioter record
-router.PUT("/api/rioters/:id", func(c *gin.Context) {
-    id := c.Param("id")
-    var updatedRioter Rioter
-    if err := c.ShouldBindJSON(&updatedRioter); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	router.PUT("/api/rioters/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		var updatedRioter Rioter
+		if err := c.ShouldBindJSON(&updatedRioter); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-    // Recompute photo_name from the updated fields.
-    // (Assuming updatedRioter has the new values.)
-    photoName := strings.ToLower(updatedRioter.LastName) + "-" + strings.ToLower(updatedRioter.FirstName)
-    if updatedRioter.MiddleName != nil && *updatedRioter.MiddleName != "" {
-        photoName += "-" + strings.ToLower(*updatedRioter.MiddleName)
-    }
-    photoName += ".jpg"
+		// Recompute photo_name from the updated fields.
+		// (Assuming updatedRioter has the new values.)
+		photoName := strings.ToLower(updatedRioter.LastName) + "-" + strings.ToLower(updatedRioter.FirstName)
+		if updatedRioter.MiddleName != nil && *updatedRioter.MiddleName != "" {
+			photoName += "-" + strings.ToLower(*updatedRioter.MiddleName)
+		}
+		photoName += ".jpg"
 
-    // Update the record in the database.
-    _, err := db.Exec(`
+		// Update the record in the database.
+		_, err := db.Exec(`
         UPDATE rioters SET
             last_name = $1,
             first_name = $2,
@@ -770,27 +772,29 @@ router.PUT("/api/rioters/:id", func(c *gin.Context) {
             geom = ST_SetSRID(ST_MakePoint($26, $25), 4326)
         WHERE id = $27
     `,
-        updatedRioter.LastName, updatedRioter.FirstName, updatedRioter.MiddleName, updatedRioter.Summary, updatedRioter.Jurisdiction, updatedRioter.Charges,
-        updatedRioter.ChargesLink, updatedRioter.CaseStatus, updatedRioter.CaseUpdates, updatedRioter.ViolenceAssault, updatedRioter.Conspiracy,
-        updatedRioter.Theft, updatedRioter.Property, updatedRioter.Age, updatedRioter.City, updatedRioter.State, updatedRioter.MilitaryLE, updatedRioter.Extremist, updatedRioter.InspiredTrump,
-        updatedRioter.Sentenced, updatedRioter.Commuted, updatedRioter.Pardoned, updatedRioter.ArrestDate, photoName, updatedRioter.Latitude, updatedRioter.Longitude, id,
-    )
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+			updatedRioter.LastName, updatedRioter.FirstName, updatedRioter.MiddleName, updatedRioter.Summary, updatedRioter.Jurisdiction, updatedRioter.Charges,
+			updatedRioter.ChargesLink, updatedRioter.CaseStatus, updatedRioter.CaseUpdates, updatedRioter.ViolenceAssault, updatedRioter.Conspiracy,
+			updatedRioter.Theft, updatedRioter.Property, updatedRioter.Age, updatedRioter.City, updatedRioter.State, updatedRioter.MilitaryLE, updatedRioter.Extremist, updatedRioter.InspiredTrump,
+			updatedRioter.Sentenced, updatedRioter.Commuted, updatedRioter.Pardoned, updatedRioter.ArrestDate, photoName, updatedRioter.Latitude, updatedRioter.Longitude, id,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
-    c.JSON(http.StatusOK, gin.H{
-        "status": "success",
-        "id":     id,
-    })
-})
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success",
+			"id":     id,
+		})
+	})
 	// Start server
-    router.GET("/api/rioters/:id", func(c *gin.Context) {
-    id := c.Param("id")
+	router.GET("/api/rioters/:id", func(c *gin.Context) {
+		id := c.Param("id")
 
-    // Query to get a single rioter
-    query := `
+		log.Printf("Fetching rioter with ID: %s", id)
+
+		// Query to get a single rioter
+		query := `
         SELECT id, last_name, first_name, middle_name, summary, 
                jurisdiction, charges, charges_link, case_status, 
                case_updates, violence_assault, conspiracy, theft, 
@@ -803,33 +807,31 @@ router.PUT("/api/rioters/:id", func(c *gin.Context) {
         WHERE id = $1
     `
 
-    var rioter Rioter
-    err := db.QueryRow(query, id).Scan(
-        &rioter.ID, &rioter.LastName, &rioter.FirstName, &rioter.MiddleName,
-        &rioter.Summary, &rioter.Jurisdiction, &rioter.Charges, &rioter.ChargesLink,
-        &rioter.CaseStatus, &rioter.CaseUpdates, &rioter.ViolenceAssault,
-        &rioter.Conspiracy, &rioter.Theft, &rioter.Property, &rioter.Age, &rioter.City,
-        &rioter.State, &rioter.MilitaryLE, &rioter.Extremist, &rioter.InspiredTrump,
-        &rioter.Sentenced, &rioter.Commuted, &rioter.Pardoned, &rioter.ArrestDate,
-        &rioter.PhotoName, &rioter.Longitude, &rioter.Latitude,
-    )
+		var rioter Rioter
+		err := db.QueryRow(query, id).Scan(
+			&rioter.ID, &rioter.LastName, &rioter.FirstName, &rioter.MiddleName,
+			&rioter.Summary, &rioter.Jurisdiction, &rioter.Charges, &rioter.ChargesLink,
+			&rioter.CaseStatus, &rioter.CaseUpdates, &rioter.ViolenceAssault,
+			&rioter.Conspiracy, &rioter.Theft, &rioter.Property, &rioter.Age, &rioter.City,
+			&rioter.State, &rioter.MilitaryLE, &rioter.Extremist, &rioter.InspiredTrump,
+			&rioter.Sentenced, &rioter.Commuted, &rioter.Pardoned, &rioter.ArrestDate,
+			&rioter.PhotoName, &rioter.Longitude, &rioter.Latitude,
+		)
 
-    if err != nil {
-        if err == sql.ErrNoRows {
-            c.JSON(http.StatusNotFound, gin.H{"error": "Rioter not found"})
-            return
-        }
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
-     defer func() {
-        if db != nil {
-            db.Close()
-            log.Println("Database connection closed.")
-        }
-    }()
-    c.JSON(http.StatusOK, rioter)
-})
-   
+		if err != nil {
+			if err == sql.ErrNoRows {
+				log.Printf("Rioter with ID %s not found", id)
+				c.JSON(http.StatusNotFound, gin.H{"error": "Rioter not found"})
+				return
+			}
+			log.Printf("Database error for ID %s: %v", id, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
+			return
+		}
+
+		log.Printf("Successfully fetched rioter: %+v", rioter)
+		c.JSON(http.StatusOK, rioter)
+	})
+
 	router.Run(":8080")
 }

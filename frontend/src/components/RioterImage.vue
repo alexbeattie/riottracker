@@ -35,7 +35,11 @@ const props = defineProps({
 const isLoading = ref(true);
 const hasError = ref(false);
 
-const imageUrl = computed(() => getImageUrl(props.photoName));
+const imageUrl = computed(() => {
+  return typeof props.photoName === "string" && props.photoName.trim()
+    ? getImageUrl(props.photoName.trim())
+    : getPlaceholderUrl();
+});
 const alt = computed(() => `${props.firstName} ${props.lastName}`);
 
 const handleImageError = (event) => {

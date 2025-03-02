@@ -137,6 +137,7 @@
               :rioters="filteredRioters"
               :bounds="manualBounds || mapBounds"
               :selected-rioter="selectedRioter"
+              ref="mapComponent"
               @marker-click="handleMarkerClick"
               @center-map="flyToMarker"
             />
@@ -315,6 +316,15 @@ import RiotersMap from "./components/RiotersMap.vue";
 // import BasePagination from "./components/BasePagination.vue"; // Updated import
 import api from "./api"; // Only one import
 import Navigation from "./components/Navigation.vue";
+const mapComponent = ref(null);
+const flyToMarker = (rioter) => {
+  if (mapComponent.value?.flyToMarker) {
+    mapComponent.value.flyToMarker(rioter);
+  } else {
+    console.warn("⚠️ flyToMarker is not available on the map component.");
+  }
+};
+
 // Component registration is automatic with <script setup>
 // State
 // const loadMoreRioters = () => {
@@ -781,7 +791,7 @@ const fetchRioters = async (append = false) => {
 //   fetchRioters();
 // };
 // const baseUrl = process.env.VUE_APP_API_URL;
-const photoUrl = "http://192.168.1.158:8080";
+const photoUrl = "http://localhost:8080";
 const getImageUrl = (photoName) => {
   // const baseUrl = "http://localhost:8080";
   return photoName?.trim()

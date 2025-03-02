@@ -6,12 +6,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, defineProps, onBeforeUnmount } from "vue";
+import { ref, onMounted, watch, defineProps, onBeforeUnmount, defineEmits } from "vue";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getImageUrl } from "../utils/imageHandling";
 import { nextTick } from "vue";
-const emit = defineEmits(["marker-click"]);
+const emit = defineEmits(["marker-click", "center-map"]);
 const MAPBOX_ACCESS_TOKEN = process.env.VUE_APP_MAPBOX_ACCESS_TOKEN;
 const createPopupContent = (rioter) => {
   return `
@@ -88,6 +88,16 @@ const initializeMap = () => {
     updateMarkers();
   }
 };
+const flyToMarker = (rioter) => {
+  if (!map.value || !rioter || !rioter.latitude || !rioter.longitude) return;
+
+  console.log("🛫 Flying to:", rioter.first_name, rioter.last_name);
+  map.value.flyTo({
+    center: [rioter.longitude, rioter.latitude],
+    zoom: 10,
+    essential: true,
+  });
+};
 
 // const clearMarkers = () => {
 //   markers.value.forEach((marker) => marker.remove());
@@ -119,28 +129,62 @@ const updateMarkers = () => {
   }, {});
 
   const seenCoords = new Map();
-  const flyToMarker = (rioter) => {
-    if (!map.value || !rioter || !rioter.latitude || !rioter.longitude) return;
-
-    console.log("🛫 Flying to:", rioter.first_name, rioter.last_name);
-    map.value.flyTo({
-      center: [rioter.longitude, rioter.latitude],
-      zoom: 10,
-      essential: true,
-    });
-  };
 
   // Call it inside the watcher
   watch(
     () => props.selectedRioter,
-    (newSelectedRioter) => {
-      if (newSelectedRioter) {
+    async (newSelectedRioter) => {
+      if (!newSelectedRioter || markers.value.length === 0) {
+        console.warn("⚠️ No selected rioter or no markers loaded.");
+        return;
+      }
+
+      console.log("📍 Centering map on:", newSelectedRioter);
+
+      // Ensure the selected rioter has valid coordinates
+      if (!newSelectedRioter.latitude || !newSelectedRioter.longitude) {
+        console.warn("⚠️ No valid lat/lng for:", newSelectedRioter);
+        return;
+      }
+
+      // 🔹 Fly to marker
+      if (map) {
         console.log(
-          "📍 Centering map on:",
+          "🛫 Flying to:",
           newSelectedRioter.first_name,
           newSelectedRioter.last_name
         );
-        flyToMarker(newSelectedRioter); // ✅ Call the function when a rioter is selected
+        map.flyTo({
+          center: [newSelectedRioter.longitude, newSelectedRioter.latitude],
+          zoom: 10, // Adjust zoom level if necessary
+          essential: true,
+        });
+      }
+
+      await nextTick(); // ✅ Wait for DOM updates
+
+      // 🔹 Close all existing popups
+      markers.value.forEach((marker) => marker.getPopup().remove());
+
+      // 🔹 Find the correct marker
+      const marker = markers.value.find((m) => m._rioter?.id === newSelectedRioter.id);
+      if (marker) {
+        console.log(
+          "✅ Found marker for:",
+          newSelectedRioter.first_name,
+          newSelectedRioter.last_name
+        );
+
+        // Ensure the popup is set properly
+        const popup = new mapboxgl.Popup({ maxWidth: "300px" })
+          .setLngLat([newSelectedRioter.longitude, newSelectedRioter.latitude])
+          .setHTML(createPopupContent(newSelectedRioter))
+          .addTo(map);
+
+        marker.setPopup(popup);
+        marker.togglePopup(); // ✅ Open the popup
+      } else {
+        console.warn("⚠️ Marker not found for selected rioter:", newSelectedRioter);
       }
     }
   );
@@ -199,44 +243,44 @@ const updateMarkers = () => {
 
 watch(() => props.rioters, updateMarkers, { deep: true });
 
-watch(
-  () => props.selectedRioter,
-  async (newSelectedRioter) => {
-    if (!newSelectedRioter || markers.value.length === 0) return;
+// watch(
+//   () => props.selectedRioter,
+//   async (newSelectedRioter) => {
+//     if (!newSelectedRioter || markers.value.length === 0) return;
 
-    console.log(
-      "Trying to open popup for:",
-      newSelectedRioter.first_name,
-      newSelectedRioter.last_name
-    );
+//     console.log(
+//       "Trying to open popup for:",
+//       newSelectedRioter.first_name,
+//       newSelectedRioter.last_name
+//     );
 
-    await nextTick(); // ✅ Wait for DOM updates
+//     await nextTick(); // ✅ Wait for DOM updates
 
-    // Close all popups first
-    markers.value.forEach((marker) => marker.getPopup().remove());
+//     // Close all popups first
+//     markers.value.forEach((marker) => marker.getPopup().remove());
 
-    // Find the correct marker
-    const marker = markers.value.find((m) => m._rioter?.id === newSelectedRioter.id);
-    if (marker) {
-      console.log(
-        "✅ Found marker for:",
-        newSelectedRioter.first_name,
-        newSelectedRioter.last_name
-      );
+//     // Find the correct marker
+//     const marker = markers.value.find((m) => m._rioter?.id === newSelectedRioter.id);
+//     if (marker) {
+//       console.log(
+//         "✅ Found marker for:",
+//         newSelectedRioter.first_name,
+//         newSelectedRioter.last_name
+//       );
 
-      // Ensure the popup is re-created and opened properly
-      const popup = new mapboxgl.Popup({ maxWidth: "300px" })
-        .setLngLat([newSelectedRioter.longitude, newSelectedRioter.latitude])
-        .setHTML(createPopupContent(newSelectedRioter))
-        .addTo(map);
+//       // Ensure the popup is re-created and opened properly
+//       const popup = new mapboxgl.Popup({ maxWidth: "300px" })
+//         .setLngLat([newSelectedRioter.longitude, newSelectedRioter.latitude])
+//         .setHTML(createPopupContent(newSelectedRioter))
+//         .addTo(map);
 
-      marker.setPopup(popup); // ✅ Ensure popup is set on the marker
-      marker.togglePopup(); // ✅ Open it
-    } else {
-      console.warn("⚠️ Marker not found for selected rioter:", newSelectedRioter);
-    }
-  }
-);
+//       marker.setPopup(popup); // ✅ Ensure popup is set on the marker
+//       marker.togglePopup(); // ✅ Open it
+//     } else {
+//       console.warn("⚠️ Marker not found for selected rioter:", newSelectedRioter);
+//     }
+//   }
+// );
 
 watch(
   () => props.bounds,
@@ -256,6 +300,8 @@ watch(
   },
   { immediate: true }
 );
+defineExpose({ flyToMarker });
+
 // onMounted(initializeMap);
 onBeforeUnmount(() => {
   if (map) map.remove();
