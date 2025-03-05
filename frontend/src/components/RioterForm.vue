@@ -1,3 +1,4 @@
+<!-- eslint-disable -->
 <template>
   <div class="max-w-lg mx-auto p-4 border rounded shadow">
     <!-- When in edit mode, show a loading indicator while fetching data -->
@@ -158,7 +159,9 @@
           <button
             type="submit"
             class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            :disabled="submitting"
           >
+            <span v-if="submitting" class="inline-block animate-spin mr-2">⟳</span>
             {{ mode === "edit" ? "Update" : "Submit" }}
           </button>
           <!-- Only show Cancel if in edit mode -->
@@ -185,7 +188,9 @@
 </template>
 
 <script>
-import api from "@/api";
+import { useRiotersStore } from "@/stores/rioters";
+
+import { storeToRefs } from "pinia";
 
 export default {
   name: "RioterForm",
@@ -203,7 +208,6 @@ export default {
   },
   data() {
     return {
-      // All the fields needed for a rioter
       form: {
         first_name: "",
         last_name: "",
@@ -228,10 +232,14 @@ export default {
         commuted: false,
         pardoned: false,
         arrest_date: "",
+        photo_name: "", // Include the current photo name if available
+        // Include id if we're in edit mode
+        id: this.mode === "edit" ? this.id : null,
       },
       message: "",
       error: "",
       loading: false,
+      submitting: false,
       // A mapping for the boolean fields to show custom labels
       booleanFields: {
         violence_assault: "Violence/Assault",
@@ -241,50 +249,112 @@ export default {
         military_le: "Military/LE",
         extremist: "Extremist",
         inspired_trump: "Inspired Trump",
+        sentenced: "Sentenced",
+        commuted: "Commuted",
+        pardoned: "Pardoned",
       },
     };
   },
-  mounted() {
-    if (this.mode === "edit" && this.id) {
-      this.loadRioter();
-    }
+  setup() {
+    const riotersStore = useRiotersStore(); // Use the plural name
+    const { selectedRioter } = storeToRefs(riotersStore);
+
+    return {
+      riotersStore, // Return the plural name
+      selectedRioter,
+    };
   },
+  // watch: {
+  //   // Watch for changes in the store's selectedRioter
+  //   selectedRioter(newValue) {
+  //     if (newValue && this.mode === "edit") {
+  //       this.updateFormFromSelectedRioter();
+  //     }
+  //   },
+  // },
+  // mounted() {
+  //   console.log("RioterForm mounted - mode:", this.mode, "id:", this.id);
+
+  //   if (this.mode === "edit" && this.id) {
+  //     this.loadRioter();
+  //   }
+  // },
   methods: {
     async loadRioter() {
+      console.log("loadRioter started");
+
       this.loading = true;
       try {
-        const response = await api.get(`/rioters/${this.id}`);
-        // Update form with fetched data
-        Object.keys(this.form).forEach((key) => {
-          if (response.data[key] !== undefined) {
-            this.form[key] = response.data[key];
-          }
-        });
+        console.log("Fetching rioter with ID:", this.id);
+
+        // Use the correct method name from your store
+        await this.riotersStore.fetchRioterById(this.id);
+        console.log("Fetch complete, selectedRioter:", this.selectedRioter);
+        if (this.selectedRioter) {
+          this.updateFormFromSelectedRioter();
+        } else {
+          console.warn("selectedRioter is null after fetch");
+        }
       } catch (error) {
         this.error = "Failed to load rioter data";
         console.error("Error loading rioter:", error);
       } finally {
         this.loading = false;
+        console.log("loadRioter complete, loading state:", this.loading);
+      }
+    },
+    updateFormFromSelectedRioter() {
+      if (this.selectedRioter) {
+        const photoName = this.selectedRioter.photo_name;
+
+        // // Update form with fetched data
+        // if (this.selectedRioter.photo_name) {
+        //   this.form.photo_name = this.selectedRioter.photo_name;
+        // }
+        Object.keys(this.form).forEach((key) => {
+          if (this.selectedRioter[key] !== undefined) {
+            this.form[key] = this.selectedRioter[key];
+          }
+        });
+        if (photoName) {
+          this.form.photo_name = photoName;
+          console.log("Photo name set:", this.form.photo_name);
+        }
+        // Explicitly ensure photo_name is set
+        // if (this.selectedRioter.photo_name) {
+        //   this.form.photo_name = this.selectedRioter.photo_name;
+        // }
+        // Ensure the ID is set
+        this.form.id = this.selectedRioter.id;
       }
     },
     async submitForm() {
       this.message = "";
       this.error = "";
+      this.submitting = true;
+
       try {
         if (this.mode === "edit") {
-          await api.put(`/rioters/${this.id}`, this.form);
+          // Use the store action to update the rioter
+          console.log("Updating with photo_name:", this.form.photo_name);
+
+          await this.riotersStore.updateRioter(this.form);
           this.message = "Rioter record updated successfully!";
           // Optionally redirect after update
           setTimeout(() => {
             this.$router.push("/");
           }, 1500);
         } else {
-          await api.post("/rioters", this.form);
+          // Use the store action to create a new rioter
+          await this.riotersStore.createRioter(this.form);
           this.message = "Rioter record added successfully!";
           this.resetForm();
         }
       } catch (error) {
         this.error = error.response?.data?.error || error.message || "Submission failed";
+        console.error("Form submission error:", error);
+      } finally {
+        this.submitting = false;
       }
     },
     resetForm() {

@@ -43,55 +43,15 @@
           </div>
 
           <!-- Scrollable Rioters List -->
-          <div class="flex-1 overflow-y-auto px-6">
-            <ul v-if="filteredRioters.length > 0" class="space-y-4">
-              <li
-                v-for="rioter in filteredRioters"
-                :key="rioter.id"
-                :data-rioter-id="rioter.id"
-                class="cursor-pointer p-4 hover:bg-gray-50 shadow rounded-lg"
-                :class="{ 'bg-blue-50': selectedRioter?.id === rioter.id }"
-                @click="selectRioter(rioter)"
-              >
-                <div class="flex items-center space-x-4">
-                  <img
-                    :src="getImageUrl(rioter.photo_name)"
-                    class="h-12 w-12 rounded-full object-cover"
-                    @error="handleImageError"
-                  />
-                  <div>
-                    <h4 class="font-medium text-gray-900">
-                      {{ rioter.first_name }} {{ rioter.last_name }}
-                    </h4>
-                    <p class="text-sm text-gray-500">
-                      {{ [rioter.city, rioter.state].filter(Boolean).join(", ") }}
-                    </p>
-                  </div>
-                  <button
-                    @click.stop="navigateToEdit(rioter)"
-                    class="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </li>
-            </ul>
-
-            <!-- No Results Message -->
-            <div
-              v-else-if="!loading"
-              class="bg-white shadow rounded-lg p-6 text-center mt-6"
-            >
-              <p class="text-gray-500">No results found matching your filters.</p>
-            </div>
-          </div>
-          <!-- <button
-          v-if="currentPage < totalPages"
-          @click="loadMoreRioters"
-          class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg w-full"
-        >
-          Load More
-        </button> -->
+          <RiotersList
+            :filteredRioters="riotersStore.filteredRioters || riotersStore.rioters"
+            :selectedRioter="selectedRioter"
+            :selectRioter="selectRioter"
+            :loading="riotersStore.loading"
+            :getImageUrl="getImageUrl"
+            :handleImageError="handleImageError"
+            :navigateToEdit="navigateToEdit"
+          />
           <div
             class="p-2 bg-white border-t border-gray-200 flex items-center justify-center"
           >
@@ -309,14 +269,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
-import SearchFilters from "./components/SearchFilters.vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, watchEffect } from "vue";
+import { useRiotersStore } from "@/stores/rioters";
 import { useRouter } from "vue-router";
+import SearchFilters from "./components/SearchFilters.vue";
 import RiotersMap from "./components/RiotersMap.vue";
 // import BasePagination from "./components/BasePagination.vue"; // Updated import
 import api from "./api"; // Only one import
 import Navigation from "./components/Navigation.vue";
+import RiotersList from "./components/RiotersList.vue";
 const mapComponent = ref(null);
+const riotersStore = useRiotersStore();
+const router = useRouter();
+
+onMounted(() => {
+  riotersStore.fetchRioters();
+});
+
 const flyToMarker = (rioter) => {
   if (mapComponent.value?.flyToMarker) {
     mapComponent.value.flyToMarker(rioter);
@@ -336,10 +305,6 @@ const flyToMarker = (rioter) => {
 const stateCounts = ref({}); // Store state counts
 // const selectedState = ref(""); // Stores the selected state
 // const rioterCount = ref(null); // Stores the count of rioters in the selected state
-const router = useRouter();
-const navigateToEdit = (rioter) => {
-  router.push(`/rioter/${rioter.id}/edit`);
-};
 const emit = defineEmits(["filters-changed", "center-map"]);
 // const emit("center-map", { lat, lng });
 const markers = ref([]); // Store map markers
@@ -393,13 +358,8 @@ const fetchStateCounts = async () => {
     console.error("Error fetching state counts:", err);
   }
 };
-const closeSidebarOnMobile = () => {
-  if (window.innerWidth < 1024) {
-    showMobileSidebar.value = false;
-  }
-};
+
 const manualBounds = ref(null);
-const showMobileSidebar = ref(false);
 const selectedRioter = ref(null);
 const rioters = ref([]);
 const loading = ref(true);
@@ -455,54 +415,41 @@ watch(selectedRioter, (newVal) => {
     document.body.classList.remove("overflow-hidden");
   }
 });
-
-// Computed Properties
 const filteredRioters = computed(() => {
-  return rioters.value.filter((rioter) => {
-    const searchText = (currentFilters.value.searchText || "").toLowerCase();
-    const stateFilter = (currentFilters.value.state || "").toLowerCase();
-    const chargeType = currentFilters.value.charges;
-    const statusFilter = (currentFilters.value.status || "").toLowerCase();
-    const activeAffiliations = Object.entries(currentFilters.value.affiliations)
-      .filter(([, value]) => value)
-      .map(([key]) => key);
-
-    // Search text filter
-    if (
-      searchText &&
-      !(
-        `${rioter.first_name} ${rioter.last_name}`?.toLowerCase().includes(searchText) ||
-        rioter.summary?.toLowerCase().includes(searchText) ||
-        rioter.charges?.toLowerCase().includes(searchText)
-      )
-    ) {
-      return false;
-    }
-
-    // State filter
-    if (stateFilter && rioter.state?.toLowerCase() !== stateFilter) {
-      return false;
-    }
-
-    // Charge type filter
-    if (chargeType && !rioter[chargeType]) return false;
-
-    // Status filter
-    if (statusFilter && !rioter.case_status?.toLowerCase().includes(statusFilter)) {
-      return false;
-    }
-
-    // Affiliation filters
-    if (
-      activeAffiliations.length > 0 &&
-      !activeAffiliations.every((affiliation) => rioter[affiliation])
-    ) {
-      return false;
-    }
-
-    return true;
-  });
+  return rioters.value.filter((rioter) => matchesFilters(rioter));
 });
+const matchesFilters = (rioter) => {
+  let params = {};
+  Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
+    if (value) {
+      params[`affiliations.${key}`] = value;
+    }
+  });
+  const { searchText, state, charges, status } = currentFilters.value;
+
+  if (
+    searchText &&
+    !`${rioter.first_name} ${rioter.last_name}`
+      .toLowerCase()
+      .includes(searchText.toLowerCase())
+  ) {
+    return false;
+  }
+
+  if (state && rioter.state?.toLowerCase() !== state.toLowerCase()) {
+    return false;
+  }
+
+  if (charges && !rioter.charges?.toLowerCase().includes(charges.toLowerCase())) {
+    return false;
+  }
+
+  if (status && !rioter.case_status?.toLowerCase().includes(status.toLowerCase())) {
+    return false;
+  }
+
+  return true;
+};
 
 const mapBounds = computed(() => {
   const validRioters = filteredRioters.value.filter(
@@ -821,6 +768,27 @@ const selectRioter = (rioter) => {
   const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
   if (rioterElement) {
     rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+};
+const navigateToEdit = (rioter) => {
+  // Implement your navigation logic here, for example:
+  console.log("Navigating to:", `/rioter/${rioter.id}/edit`);
+
+  router.push(`/rioter/${rioter.id}/edit`);
+  console.log("Edit rioter:", rioter.id);
+};
+
+const showMobileSidebar = ref(false);
+
+watchEffect(() => {
+  if (window.innerWidth >= 1024) {
+    showMobileSidebar.value = false;
+  }
+});
+
+const closeSidebarOnMobile = () => {
+  if (window.innerWidth < 1024) {
+    showMobileSidebar.value = false;
   }
 };
 

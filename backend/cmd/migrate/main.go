@@ -790,8 +790,22 @@ func main() {
 	// Start server
 	router.GET("/api/rioters/:id", func(c *gin.Context) {
 		id := c.Param("id")
+		cacheKey := fmt.Sprintf("rioter:%s", id) // Cache key
 
 		log.Printf("Fetching rioter with ID: %s", id)
+		var err error // Declare `err` at the beginning
+
+		cached, err := rdb.Get(ctx, cacheKey).Result()
+			if err == nil {
+				log.Println("✅ Cache hit! Returning cached data from Redis.")
+				c.JSON(http.StatusOK, json.RawMessage(cached))
+				return
+			} else if err != redis.Nil {
+					log.Println("❌ Cache miss! Fetching from PostgreSQL...")
+			} else {
+						log.Printf("⚠️ Redis error: %v", err)
+
+			}
 
 		// Query to get a single rioter
 		query := `
@@ -808,7 +822,7 @@ func main() {
     `
 
 		var rioter Rioter
-		err := db.QueryRow(query, id).Scan(
+		err = db.QueryRow(query, id).Scan(
 			&rioter.ID, &rioter.LastName, &rioter.FirstName, &rioter.MiddleName,
 			&rioter.Summary, &rioter.Jurisdiction, &rioter.Charges, &rioter.ChargesLink,
 			&rioter.CaseStatus, &rioter.CaseUpdates, &rioter.ViolenceAssault,
@@ -828,6 +842,8 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database query error"})
 			return
 		}
+		jsonData, _ := json.Marshal(rioter)
+		rdb.Set(ctx, cacheKey, string(jsonData), 10*time.Minute)
 
 		log.Printf("Successfully fetched rioter: %+v", rioter)
 		c.JSON(http.StatusOK, rioter)

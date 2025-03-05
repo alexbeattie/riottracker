@@ -1,4 +1,3 @@
-<!-- src/components/RioterImage.vue -->
 <template>
   <div class="relative">
     <img
@@ -36,10 +35,11 @@ const isLoading = ref(true);
 const hasError = ref(false);
 
 const imageUrl = computed(() => {
-  return typeof props.photoName === "string" && props.photoName.trim()
+  return props.photoName && typeof props.photoName === "string"
     ? getImageUrl(props.photoName.trim())
     : getPlaceholderUrl();
 });
+
 const alt = computed(() => `${props.firstName} ${props.lastName}`);
 
 const handleImageError = (event) => {
@@ -47,8 +47,4 @@ const handleImageError = (event) => {
   isLoading.value = false;
   event.target.src = getPlaceholderUrl();
 };
-
-// const onLoad = () => {
-//   isLoading.value = false;
-// };
 </script>

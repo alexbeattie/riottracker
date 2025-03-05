@@ -25,7 +25,7 @@ const routes = [
     name: 'editRioter',
     component: EditRioterView
   },
-  { path: "/edit", component: EditRioterView }, // ✅ Now it's valid
+  
 
   // {
   //   path: '/update',
