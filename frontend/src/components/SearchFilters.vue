@@ -239,7 +239,12 @@ const fetchStateCounts = async () => {
     console.error("Error fetching state counts:", error);
   }
 };
-
+// watch(filteredRioters, () => {
+//   // Optional: Force map to re-center if needed
+//   if (mapComponent.value && mapComponent.value.fitBounds) {
+//     mapComponent.value.fitBounds(mapBounds.value);
+//   }
+// });
 const emitFilters = () => {
   loading.value = true; // Show loading indicator
   setTimeout(() => {

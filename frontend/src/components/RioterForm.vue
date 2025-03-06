@@ -50,6 +50,38 @@
           />
         </div>
 
+        <!-- Photo Upload -->
+        <div class="mb-4">
+          <label for="photo" class="block font-medium">Profile Photo</label>
+          <div class="flex items-center space-x-4">
+            <img
+              :src="photoPreview || getImageUrl(form.photo_name)"
+              class="h-32 w-32 rounded-full object-cover border border-gray-200"
+              @error="handleImageError"
+            />
+            <div>
+              <input
+                id="photo"
+                type="file"
+                accept="image/jpeg,image/png,image/jpg"
+                @change="handlePhotoChange"
+                class="hidden"
+                ref="photoInput"
+              />
+              <button
+                type="button"
+                @click="$refs.photoInput.click()"
+                class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Change Photo
+              </button>
+              <p v-if="form.photo_name" class="text-sm mt-1 text-gray-500">
+                Current: {{ form.photo_name }}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Summary -->
         <div class="mb-4">
           <label for="summary" class="block font-medium">Summary</label>
@@ -189,8 +221,9 @@
 
 <script>
 import { useRiotersStore } from "@/stores/rioters";
-
 import { storeToRefs } from "pinia";
+import api from "@/api"; // Make sure to import the API
+// import axios from "axios";
 
 export default {
   name: "RioterForm",
@@ -236,6 +269,8 @@ export default {
         // Include id if we're in edit mode
         id: this.mode === "edit" ? this.id : null,
       },
+      photoFile: null, // Add this for the photo upload
+      photoPreview: null, // Add this for the photo preview
       message: "",
       error: "",
       loading: false,
@@ -256,29 +291,29 @@ export default {
     };
   },
   setup() {
-    const riotersStore = useRiotersStore(); // Use the plural name
+    const riotersStore = useRiotersStore();
     const { selectedRioter } = storeToRefs(riotersStore);
 
     return {
-      riotersStore, // Return the plural name
+      riotersStore,
       selectedRioter,
     };
   },
-  // watch: {
-  //   // Watch for changes in the store's selectedRioter
-  //   selectedRioter(newValue) {
-  //     if (newValue && this.mode === "edit") {
-  //       this.updateFormFromSelectedRioter();
-  //     }
-  //   },
-  // },
-  // mounted() {
-  //   console.log("RioterForm mounted - mode:", this.mode, "id:", this.id);
+  watch: {
+    // Watch for changes in the store's selectedRioter
+    selectedRioter(newValue) {
+      if (newValue && this.mode === "edit") {
+        this.updateFormFromSelectedRioter();
+      }
+    },
+  },
+  mounted() {
+    console.log("RioterForm mounted - mode:", this.mode, "id:", this.id);
 
-  //   if (this.mode === "edit" && this.id) {
-  //     this.loadRioter();
-  //   }
-  // },
+    if (this.mode === "edit" && this.id) {
+      this.loadRioter();
+    }
+  },
   methods: {
     async loadRioter() {
       console.log("loadRioter started");
@@ -307,10 +342,6 @@ export default {
       if (this.selectedRioter) {
         const photoName = this.selectedRioter.photo_name;
 
-        // // Update form with fetched data
-        // if (this.selectedRioter.photo_name) {
-        //   this.form.photo_name = this.selectedRioter.photo_name;
-        // }
         Object.keys(this.form).forEach((key) => {
           if (this.selectedRioter[key] !== undefined) {
             this.form[key] = this.selectedRioter[key];
@@ -320,13 +351,62 @@ export default {
           this.form.photo_name = photoName;
           console.log("Photo name set:", this.form.photo_name);
         }
-        // Explicitly ensure photo_name is set
-        // if (this.selectedRioter.photo_name) {
-        //   this.form.photo_name = this.selectedRioter.photo_name;
-        // }
         // Ensure the ID is set
         this.form.id = this.selectedRioter.id;
       }
+    },
+    handlePhotoChange(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      this.photoFile = file;
+
+      // Create a preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        this.photoPreview = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    },
+    async uploadPhoto() {
+      if (!this.photoFile) return null;
+
+      // Create form data
+      const formData = new FormData();
+      formData.append("photo", this.photoFile);
+      formData.append("id", this.form.id);
+
+      try {
+        // Use the correct endpoint with /api prefix
+        const response = await fetch("http://localhost:8080/api/rioters/upload-photo", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.photo_name;
+      } catch (error) {
+        console.error("Photo upload error:", error);
+        throw error;
+      }
+    },
+    getImageUrl(photoName) {
+      if (!photoName) {
+        // Return inline SVG as fallback
+        return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23cccccc'/%3E%3Ctext x='50' y='50' font-size='14' text-anchor='middle' alignment-baseline='middle' font-family='Arial' fill='%23666666'%3ENo Image%3C/text%3E%3C/svg%3E";
+      }
+
+      // Fix: Use the correct URL for photos (correcting the port to 8080)
+      return `http://localhost:8080/photos/${encodeURIComponent(photoName)}`;
+    },
+
+    handleImageError(event) {
+      event.target.src =
+        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23cccccc'/%3E%3Ctext x='50' y='50' font-size='14' text-anchor='middle' alignment-baseline='middle' font-family='Arial' fill='%23666666'%3ENo Image%3C/text%3E%3C/svg%3E";
     },
     async submitForm() {
       this.message = "";
@@ -334,19 +414,29 @@ export default {
       this.submitting = true;
 
       try {
+        // Handle photo upload if a new photo was selected
+        if (this.photoFile) {
+          const newPhotoName = await this.uploadPhoto();
+          if (newPhotoName) {
+            this.form.photo_name = newPhotoName;
+          }
+        }
+
         if (this.mode === "edit") {
-          // Use the store action to update the rioter
+          // Make sure photo_name is included in the update
           console.log("Updating with photo_name:", this.form.photo_name);
 
-          await this.riotersStore.updateRioter(this.form);
+          // Use direct API call instead of store method
+          await api.put(`/rioters/${this.form.id}`, this.form);
           this.message = "Rioter record updated successfully!";
+
           // Optionally redirect after update
           setTimeout(() => {
             this.$router.push("/");
           }, 1500);
         } else {
-          // Use the store action to create a new rioter
-          await this.riotersStore.createRioter(this.form);
+          // Create new rioter
+          await api.post("/rioters", this.form);
           this.message = "Rioter record added successfully!";
           this.resetForm();
         }
@@ -384,6 +474,8 @@ export default {
         pardoned: false,
         arrest_date: "",
       };
+      this.photoFile = null;
+      this.photoPreview = null;
     },
     cancel() {
       // In edit mode, cancel and navigate away

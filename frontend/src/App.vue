@@ -1,12 +1,7 @@
 <template>
   <div id="app">
-    <!-- Navigation Menu appears on every page -->
     <Navigation />
-
-    <!-- Routed content will appear here -->
     <router-view />
-
-    <!-- Additional content (for example, your sidebar, map, etc.) -->
     <div class="min-h-screen bg-gray-50 flex">
       <!-- Mobile Menu Button -->
       <button
@@ -26,28 +21,23 @@
         }"
       >
         <div class="h-full flex flex-col">
-          <!-- Close Button for Mobile -->
           <button
             class="lg:hidden mb-4 text-gray-600 hover:text-gray-800"
             @click="showMobileSidebar = false"
           >
             ✕ Close
           </button>
-
-          <!-- Fixed Header Section -->
           <div class="p-2 flex-shrink-0 bg-white border-b border-gray-200">
             <h3 class="text-xl font-semibold text-gray-900">
               Search The J6 Rioters Database
             </h3>
             <search-filters @filters-changed="handleFiltersChange" />
           </div>
-
-          <!-- Scrollable Rioters List -->
           <RiotersList
-            :filteredRioters="riotersStore.filteredRioters || riotersStore.rioters"
+            :filteredRioters="filteredRioters"
             :selectedRioter="selectedRioter"
             :selectRioter="selectRioter"
-            :loading="riotersStore.loading"
+            :loading="loading"
             :getImageUrl="getImageUrl"
             :handleImageError="handleImageError"
             :navigateToEdit="navigateToEdit"
@@ -55,33 +45,20 @@
           <div
             class="p-2 bg-white border-t border-gray-200 flex items-center justify-center"
           >
-            <!-- Show Nearby Button -->
             <button
               class="px-3 py-1 text-xs font-medium bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
               @click="toggleFetchMode"
             >
               {{ fetchMode === "all" ? "Show Nearby" : "Show All" }}
             </button>
-
-            <!-- Pagination -->
-            <!-- <BasePagination
-              v-if="fetchMode === 'all' && !currentFilters.state"
-              class="text-xs"
-              :current-page="currentPage"
-              :total-pages="totalPages"
-              :page-size="pageSize"
-              @page-changed="handlePageChange"
-            /> -->
           </div>
         </div>
       </div>
 
       <!-- Main Content (Map) -->
       <div class="flex-1 relative flex flex-col min-h-0" @click="closeSidebarOnMobile">
-        <!-- Map Container -->
         <div class="sticky top-0 flex-1 min-h-0">
           <div class="h-full w-full relative">
-            <!-- Loading Spinner -->
             <div
               v-if="loading"
               class="absolute inset-0 bg-gray-100/50 z-10 flex items-center justify-center"
@@ -90,8 +67,6 @@
                 class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"
               />
             </div>
-
-            <!-- Map Component -->
             <rioters-map
               class="h-full w-full"
               :rioters="filteredRioters"
@@ -124,8 +99,6 @@
               >
                 ← Back to list
               </button>
-
-              <!-- Detailed Rioter Content -->
               <div class="space-y-6">
                 <div class="flex items-center space-x-4">
                   <img
@@ -135,16 +108,13 @@
                   />
                   <div>
                     <h2 class="text-2xl font-bold text-gray-900">
-                      {{ selectedRioter.first_name }}
-                      {{ selectedRioter.last_name }}
+                      {{ selectedRioter.first_name }} {{ selectedRioter.last_name }}
                     </h2>
                     <p v-if="selectedRioter.age" class="text-gray-600">
                       Age: {{ selectedRioter.age }}
                     </p>
                   </div>
                 </div>
-
-                <!-- Location -->
                 <div v-if="selectedRioter.city || selectedRioter.state" class="text-sm">
                   <h3 class="font-semibold">Location:</h3>
                   <p class="text-gray-600">
@@ -155,48 +125,26 @@
                     }}
                   </p>
                 </div>
-
-                <!-- Summary -->
                 <div v-if="selectedRioter.summary" class="text-sm">
                   <h3 class="font-semibold">Summary:</h3>
-                  <p class="mt-1 text-gray-600">
-                    {{ selectedRioter.summary }}
-                  </p>
+                  <p class="mt-1 text-gray-600">{{ selectedRioter.summary }}</p>
                 </div>
-
-                <!-- Jurisdiction -->
                 <div v-if="selectedRioter.jurisdiction" class="text-sm">
                   <h3 class="font-semibold">Jurisdiction:</h3>
-                  <p class="text-gray-600">
-                    {{ selectedRioter.jurisdiction }}
-                  </p>
+                  <p class="text-gray-600">{{ selectedRioter.jurisdiction }}</p>
                 </div>
-
-                <!-- Charges -->
                 <div v-if="selectedRioter.charges" class="text-sm">
                   <h3 class="font-semibold">Charges:</h3>
-                  <p class="mt-1 text-gray-600">
-                    {{ selectedRioter.charges }}
-                  </p>
+                  <p class="mt-1 text-gray-600">{{ selectedRioter.charges }}</p>
                 </div>
-
-                <!-- Case Status -->
                 <div v-if="selectedRioter.case_status" class="text-sm">
                   <h3 class="font-semibold">Case Status:</h3>
-                  <p class="mt-1 text-gray-600">
-                    {{ selectedRioter.case_status }}
-                  </p>
+                  <p class="mt-1 text-gray-600">{{ selectedRioter.case_status }}</p>
                 </div>
-
-                <!-- Case Updates -->
                 <div v-if="selectedRioter.case_updates" class="text-sm">
                   <h3 class="font-semibold">Case Updates:</h3>
-                  <p class="mt-1 text-gray-600">
-                    {{ selectedRioter.case_updates }}
-                  </p>
+                  <p class="mt-1 text-gray-600">{{ selectedRioter.case_updates }}</p>
                 </div>
-
-                <!-- Tags -->
                 <div class="flex flex-wrap gap-2">
                   <span
                     v-if="selectedRioter.violence_assault"
@@ -235,8 +183,6 @@
                     Sentenced
                   </span>
                 </div>
-
-                <!-- Charges Link -->
                 <div v-if="selectedRioter.charges_link" class="mt-4">
                   <a
                     :href="selectedRioter.charges_link"
@@ -269,107 +215,28 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, watchEffect } from "vue";
-import { useRiotersStore } from "@/stores/rioters";
+import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRouter } from "vue-router";
 import SearchFilters from "./components/SearchFilters.vue";
 import RiotersMap from "./components/RiotersMap.vue";
-// import BasePagination from "./components/BasePagination.vue"; // Updated import
-import api from "./api"; // Only one import
 import Navigation from "./components/Navigation.vue";
 import RiotersList from "./components/RiotersList.vue";
+import api from "./api";
+
 const mapComponent = ref(null);
-const riotersStore = useRiotersStore();
 const router = useRouter();
 
-onMounted(() => {
-  riotersStore.fetchRioters();
-});
-
-const flyToMarker = (rioter) => {
-  if (mapComponent.value?.flyToMarker) {
-    mapComponent.value.flyToMarker(rioter);
-  } else {
-    console.warn("⚠️ flyToMarker is not available on the map component.");
-  }
-};
-
-// Component registration is automatic with <script setup>
-// State
-// const loadMoreRioters = () => {
-//   if (currentPage.value < totalPages.value) {
-//     currentPage.value += 1;
-//     fetchRioters(true); // Append new data instead of replacing
-//   }
-// };
-const stateCounts = ref({}); // Store state counts
-// const selectedState = ref(""); // Stores the selected state
-// const rioterCount = ref(null); // Stores the count of rioters in the selected state
-const emit = defineEmits(["filters-changed", "center-map"]);
-// const emit("center-map", { lat, lng });
-const markers = ref([]); // Store map markers
-const filters = ref({}); // Store active filters
-
-const fetchMarkers = async () => {
-  try {
-    const response = await api.get("/rioters", { params: filters.value });
-    markers.value = response.data.data;
-  } catch (error) {
-    console.error("Error fetching markers:", error);
-  }
-};
-
-// 🛑 Watch for search/filter changes and refresh map markers
-// Ensure this function is used when a search result is selected
-watch(
-  filters,
-  async (newFilters) => {
-    console.log("Applying filters:", newFilters);
-
-    await fetchMarkers();
-
-    // 🔥 If a specific person was searched, pan the map
-    if (newFilters.searchText && markers.value.length === 1) {
-      const rioter = markers.value[0];
-      selectedRioter.value = rioter; // ✅ Ensure it's set
-      console.log("Updated selectedRioter:", selectedRioter.value);
-
-      centerMap(rioter.latitude, rioter.longitude); // ✅ Now used
-    }
-  },
-  { deep: true }
-);
-
-// 🔥 Function to update map center (assumes Mapbox component exposes `setCenter`)
-const centerMap = (lat, lng) => {
-  if (lat && lng) {
-    console.log("📍 Centering map on:", lat, lng);
-    emit("center-map", { lat, lng }); // ✅ Emit event
-  }
-};
-
-onMounted(fetchMarkers);
-
-const fetchStateCounts = async () => {
-  try {
-    const response = await api.get("/rioters/count-by-state");
-    stateCounts.value = response.data;
-  } catch (err) {
-    console.error("Error fetching state counts:", err);
-  }
-};
-
-const manualBounds = ref(null);
-const selectedRioter = ref(null);
 const rioters = ref([]);
-const loading = ref(true);
+const loading = ref(false);
 const error = ref(null);
+const selectedRioter = ref(null);
+const fetchMode = ref("all");
+const manualBounds = ref(null);
 const currentFilters = ref({
   searchText: "",
   state: "",
   charges: "",
   status: "",
-  isNewOrUpdated: false,
   affiliations: {
     military_le: false,
     extremist: false,
@@ -377,87 +244,19 @@ const currentFilters = ref({
     commuted: false,
   },
 });
-const fetchMode = ref("all");
-const userLocation = ref(null);
-const mapKey = ref(0);
-
-// State
 const currentPage = ref(1);
-const pageSize = ref(1);
-const totalPages = ref(1);
+const pageSize = ref(50);
 const totalItems = ref(0);
+const totalPages = ref(1);
+const showMobileSidebar = ref(false);
 
-const closePanel = () => {
-  selectedRioter.value = null;
-  document.body.classList.remove("overflow-hidden");
-};
-
-const handleEsc = (e) => {
-  if (e.key === "Escape" && selectedRioter.value) {
-    closePanel();
-  }
-};
-
-onMounted(() => {
-  document.addEventListener("keydown", handleEsc);
-  fetchStateCounts();
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("keydown", handleEsc);
-});
-
-// Optional: Prevent background scroll when panel is open
-watch(selectedRioter, (newVal) => {
-  if (newVal) {
-    document.body.classList.add("overflow-hidden");
-  } else {
-    document.body.classList.remove("overflow-hidden");
-  }
-});
-const filteredRioters = computed(() => {
-  return rioters.value.filter((rioter) => matchesFilters(rioter));
-});
-const matchesFilters = (rioter) => {
-  let params = {};
-  Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
-    if (value) {
-      params[`affiliations.${key}`] = value;
-    }
-  });
-  const { searchText, state, charges, status } = currentFilters.value;
-
-  if (
-    searchText &&
-    !`${rioter.first_name} ${rioter.last_name}`
-      .toLowerCase()
-      .includes(searchText.toLowerCase())
-  ) {
-    return false;
-  }
-
-  if (state && rioter.state?.toLowerCase() !== state.toLowerCase()) {
-    return false;
-  }
-
-  if (charges && !rioter.charges?.toLowerCase().includes(charges.toLowerCase())) {
-    return false;
-  }
-
-  if (status && !rioter.case_status?.toLowerCase().includes(status.toLowerCase())) {
-    return false;
-  }
-
-  return true;
-};
+const filteredRioters = computed(() => rioters.value);
 
 const mapBounds = computed(() => {
   const validRioters = filteredRioters.value.filter(
     (r) => r.latitude && r.longitude && !isNaN(r.latitude) && !isNaN(r.longitude)
   );
-
   if (validRioters.length === 0) {
-    // Fallback to US bounds if no valid markers
     return [
       [-125.0, 24.0], // SW
       [-66.93457, 49.5904], // NE
@@ -465,21 +264,52 @@ const mapBounds = computed(() => {
   }
   const lngs = validRioters.map((r) => r.longitude);
   const lats = validRioters.map((r) => r.latitude);
-
+  const padding = 0.5;
   return [
-    [Math.min(...lngs), Math.min(...lats)], // SW
-    [Math.max(...lngs), Math.max(...lats)], // NE
+    [Math.min(...lngs) - padding, Math.min(...lats) - padding], // SW
+    [Math.max(...lngs) + padding, Math.max(...lats) + padding], // NE
   ];
 });
 
-// Methods
+const fetchRioters = async () => {
+  loading.value = true;
+  error.value = null;
+  try {
+    const params = {
+      page: currentPage.value,
+      page_size: currentFilters.value.state ? 1000 : pageSize.value,
+      ...currentFilters.value,
+    };
+    if (currentFilters.value.affiliations) {
+      Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
+        params[key] = value;
+      });
+      delete params.affiliations;
+    }
+    const response = await api.get("/rioters", { params });
+    rioters.value = response.data.data || response.data;
+    totalItems.value = response.data.total;
+    totalPages.value = Math.ceil(totalItems.value / pageSize.value);
+  } catch (err) {
+    console.error("Fetch error:", err);
+    error.value = `Failed to fetch rioters: ${err.message}`;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const handleFiltersChange = (filters) => {
+  currentFilters.value = { ...filters };
+  currentPage.value = 1;
+  fetchRioters();
+};
+
 const toggleFetchMode = () => {
   currentFilters.value = {
     searchText: "",
     state: "",
     charges: "",
     status: "",
-    isNewOrUpdated: false,
     affiliations: {
       military_le: false,
       extremist: false,
@@ -491,298 +321,79 @@ const toggleFetchMode = () => {
   fetchRioters();
 };
 
-// Modify handleFiltersChange
-const handleFiltersChange = (filters) => {
-  // Reset pagination when a state filter is applied
-  console.log("Applying filters:", filters);
-
-  // If a state is selected, reset fetchMode to "all"
-  if (filters.state) {
-    fetchMode.value = "all"; // ✅ Ensure all rioters for the state are fetched
-    currentPage.value = 1; // Reset to the first page
-    pageSize.value = 200; // Adjust based on need
-  }
-
-  // Ensure the state parameter is properly set
-  currentFilters.value = {
-    searchText: filters.searchText || "",
-    state: filters.state || "", // Ensure state is handled
-    charges: filters.charges || "",
-    status: filters.status || "",
-    affiliations: { ...filters.affiliations }, // Clone affiliations object
-  };
-  // If any checkbox is selected, force fetchMode to "all"
-  if (Object.values(filters.affiliations).some((val) => val)) {
-    fetchMode.value = "all";
-  }
-  // If any dropdown or checkbox is applied, reset fetchMode to "all"
-  if (
-    filters.state ||
-    filters.charges ||
-    filters.status ||
-    Object.values(filters.affiliations).some((val) => val)
-  ) {
-    fetchMode.value = "all";
-  }
-
-  // Update map bounds if state filter is applied
-  // Update map bounds if state filter is applied
-  if (filters.state) {
-    const stateCenters = {
-      alaska: [-152.404419, 64.200841], // Example coordinates for Alask
-      al: [-86.902298, 32.318231], // Alabama
-      ak: [-154.493062, 63.588753], // Alaska
-      az: [-111.093731, 34.048927], // Arizona
-      ar: [-92.373123, 34.969704], // Arkansas
-      ca: [-119.417931, 37.184092], // California
-      co: [-105.311104, 39.550051], // Colorado
-      ct: [-72.755371, 41.597782], // Connecticut
-      de: [-75.507141, 39.318523], // Delaware
-      fl: [-81.515754, 27.994402], // Florida
-      ga: [-83.357567, 32.165622], // Georgia
-      hi: [-155.665857, 20.796667], // Hawaii
-      id: [-114.742041, 44.068202], // Idaho
-      il: [-89.398528, 40.633125], // Illinois
-      in: [-86.134902, 40.267194], // Indiana
-      ia: [-93.581543, 41.878003], // Iowa
-      ks: [-98.484246, 38.498778], // Kansas
-      ky: [-85.759407, 37.839333], // Kentucky
-      la: [-92.145024, 31.244823], // Louisiana
-      me: [-69.445469, 45.253783], // Maine
-      md: [-76.641271, 39.045755], // Maryland
-      ma: [-71.382437, 42.407211], // Massachusetts
-      mi: [-85.602364, 44.314844], // Michigan
-      mn: [-94.685899, 46.729553], // Minnesota
-      ms: [-89.398528, 32.354668], // Mississippi
-      mo: [-92.373123, 38.573936], // Missouri
-      mt: [-110.362566, 46.879682], // Montana
-      ne: [-99.901813, 41.492537], // Nebraska
-      nv: [-116.419389, 38.80261], // Nevada
-      nh: [-71.572395, 43.193852], // New Hampshire
-      nj: [-74.405661, 40.058324], // New Jersey
-      nm: [-105.870091, 34.51994], // New Mexico
-      ny: [-75.144424, 43.156168], // New York
-      nc: [-79.0193, 35.759573], // North Carolina
-      nd: [-99.784012, 47.551493], // North Dakota
-      oh: [-82.907123, 40.417287], // Ohio
-      ok: [-97.092877, 35.007752], // Oklahoma
-      or: [-120.554201, 44.045674], // Oregon
-      pa: [-77.194525, 41.203322], // Pennsylvania
-      ri: [-71.477429, 41.580095], // Rhode Island
-      sc: [-81.163725, 33.836081], // South Carolina
-      sd: [-99.438828, 43.969515], // South Dakota
-      tn: [-86.580447, 35.517491], // Tennessee
-      tx: [-99.359349, 31.816038], // Texas
-      ut: [-111.950684, 39.41922], // Utah
-      vt: [-72.577841, 44.558803], // Vermont
-      va: [-78.656894, 37.431573], // Virginia
-      wa: [-120.740139, 47.751074], // Washington
-      wv: [-80.954456, 38.597626], // West Virginia
-      wi: [-89.616508, 44.78444], // Wisconsin
-      wy: [-107.290284, 43.075968], // Wyoming
-    };
-    const center = stateCenters[filters.state.toLowerCase()];
-    if (center) {
-      manualBounds.value = [
-        [center[0] - 2, center[1] - 1],
-        [center[0] + 2, center[1] + 1],
-      ];
-    }
-  } else {
-    manualBounds.value = null;
-  }
-
-  fetchRioters(); // Re-fetch data
-};
-const getCoordinates = async () => {
-  if (!navigator.geolocation) {
-    throw new Error("Geolocation is not supported by this browser.");
-  }
-
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        });
-      },
-      (error) => {
-        console.error("Geolocation error:", error);
-        reject(error);
-      },
-      { enableHighAccuracy: true, timeout: 1000, maximumAge: 0 } // Better accuracy on iOS
-    );
-  });
-};
-
-const fetchRioters = async (append = false) => {
-  loading.value = true;
-  error.value = null;
-
-  try {
-    let response;
-    const params = {
-      // page: currentPage.value,
-      page: 1,
-      page_size: 658, // Fetch more results per page if necessary
-    };
-
-    // if (currentFilters.value.state) {
-    //   params.state = currentFilters.value.state;
-    // }
-    console.log("Fetching rioters with params:", params); // Debugging
-
-    // response = await api.get("/rioters", { params });
-
-    // Add non-empty filters to the params object
-    Object.entries(currentFilters.value).forEach(([key, value]) => {
-      if (value !== "" && value !== null && value !== undefined) {
-        params[key] = value;
-      }
-    });
-    // Ensure all states are fetched when no specific state is selected
-    // if (!currentFilters.value.state) {
-    //   delete params.state; // Remove state filter from query
-    // }
-    // ✅ Flatten affiliations object
-    if (currentFilters.value.affiliations) {
-      Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
-        if (value) {
-          params[`affiliations.${key}`] = value; // Convert to API format
-        }
-      });
-    }
-
-    response = await api.get("/rioters", { params });
-
-    // ✅ Append results when "Load More" is clicked
-    rioters.value = append
-      ? [...rioters.value, ...response.data.data] // Append new results
-      : response.data.data; // Replace results when fetching fresh
-
-    totalItems.value = response.data.total || response.data.length;
-    totalPages.value = Math.ceil(totalItems.value / params.page_size);
-
-    // Handle response
-    // rioters.value = response.data.data || response.data;
-    // totalItems.value = response.data.total || response.data.length;
-    // totalPages.value = response.data.pages || 1;
-
-    // Apply all active filters
-    if (currentFilters.value.searchText) {
-      params.searchText = currentFilters.value.searchText;
-    }
-    if (currentFilters.value.state) {
-      response = await api.get("/rioters/by-state", {
-        params: { state: currentFilters.value.state },
-      });
-      rioters.value = response.data; // Use the grouped response
-    } else {
-      // Fetch all rioters if no state filter is applied
-      response = await api.get("/rioters", { params });
-      rioters.value = response.data.data || response.data;
-    }
-    if (currentFilters.value.charges) {
-      params.charges = currentFilters.value.charges;
-    }
-    if (currentFilters.value.status) {
-      params.status = currentFilters.value.status;
-    } // Flatten the affiliations object
-    if (currentFilters.value.affiliations) {
-      Object.entries(currentFilters.value.affiliations).forEach(([key, value]) => {
-        if (value !== "" && value !== null && value !== undefined) {
-          params[`affiliations.${key}`] = value; // Flatten to affiliations.military_le, etc.
-        }
-      });
-      delete params.affiliations; // Remove the nested object
-    }
-
-    if (fetchMode.value === "all") {
-      response = await api.get("/rioters", { params });
-    } else {
-      // Nearby mode logic
-      let coords;
-      try {
-        coords = await getCoordinates();
-        userLocation.value = coords;
-      } catch (err) {
-        userLocation.value = { lat: 34.052235, lng: -118.243683 };
-      }
-
-      const nearbyParams = {
-        lng: coords.lng,
-        lat: coords.lat,
-        radius: 50000,
-        ...params, // Use the flattened params
-      };
-
-      response = await api.get("/rioters/nearby", { params: nearbyParams });
-    }
-
-    // Handle response
-    rioters.value = response.data.data || response.data;
-    totalItems.value = response.data.total || response.data.length;
-    totalPages.value = response.data.pages || 1;
-  } catch (err) {
-    console.error("Fetch error:", err);
-    error.value = `Failed to fetch rioters: ${err.message}`;
-  } finally {
-    loading.value = false;
-    mapKey.value++;
-  }
-};
-// Add page change handler
-// const handlePageChange = (newPage) => {
-//   currentPage.value = newPage;
-//   fetchRioters();
-// };
-// const baseUrl = process.env.VUE_APP_API_URL;
 const photoUrl = "http://localhost:8080";
-const getImageUrl = (photoName) => {
-  // const baseUrl = "http://localhost:8080";
-  return photoName?.trim()
+const getImageUrl = (photoName) =>
+  photoName?.trim()
     ? `${photoUrl}/photos/${encodeURIComponent(photoName)}`
     : `${photoUrl}/photos/placeholder.jpg`;
-};
 
 const handleImageError = (event) => {
   event.target.src = `${photoUrl}/photos/placeholder.jpg`;
 };
-const selectRioter = (rioter) => {
-  try {
-    if (fetchMode.value === "nearby") {
-      // Fetch complete details when selecting a rioter in nearby mode
-      const response = api.get(`/rioters/${rioter.id}`);
+
+const selectRioter = async (rioter) => {
+  if (fetchMode.value === "nearby") {
+    try {
+      const response = await api.get(`/rioters/${rioter.id}`);
       selectedRioter.value = response.data;
-    } else {
-      selectedRioter.value = rioter;
+    } catch (error) {
+      console.error("Error fetching rioter details:", error);
+      selectedRioter.value = rioter; // Fallback to passed rioter
     }
-  } catch (error) {
-    console.error("Error fetching rioter details:", error);
+  } else {
+    selectedRioter.value = rioter;
   }
-
-  showMobileSidebar.value = false; // Close sidebar on mobile
-
-  // Scroll to the selected rioter in the list
+  showMobileSidebar.value = false;
   const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
   if (rioterElement) {
     rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 };
-const navigateToEdit = (rioter) => {
-  // Implement your navigation logic here, for example:
-  console.log("Navigating to:", `/rioter/${rioter.id}/edit`);
 
+const navigateToEdit = (rioter) => {
   router.push(`/rioter/${rioter.id}/edit`);
-  console.log("Edit rioter:", rioter.id);
 };
 
-const showMobileSidebar = ref(false);
+const flyToMarker = (rioter) => {
+  if (mapComponent.value?.flyToMarker) {
+    mapComponent.value.flyToMarker(rioter);
+  }
+};
 
-watchEffect(() => {
-  if (window.innerWidth >= 1024) {
-    showMobileSidebar.value = false;
+const handleMarkerClick = (rioter) => {
+  selectRioter(rioter);
+  flyToMarker(rioter);
+};
+
+const closePanel = () => {
+  selectedRioter.value = null;
+  document.body.classList.remove("overflow-hidden");
+};
+
+onMounted(() => {
+  fetchRioters();
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && selectedRioter.value) {
+      closePanel();
+    }
+  });
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("keydown", () => {});
+});
+
+watch(selectedRioter, (newVal) => {
+  if (newVal) {
+    document.body.classList.add("overflow-hidden");
+  } else {
+    document.body.classList.remove("overflow-hidden");
+  }
+});
+
+watch(filteredRioters, () => {
+  if (mapComponent.value && mapComponent.value.fitBounds) {
+    mapComponent.value.fitBounds(mapBounds.value);
   }
 });
 
@@ -791,22 +402,6 @@ const closeSidebarOnMobile = () => {
     showMobileSidebar.value = false;
   }
 };
-
-const handleMarkerClick = (rioter) => {
-  console.log("📌 Marker clicked:", rioter);
-  selectRioter(rioter);
-
-  // 🔥 Ensure the popup opens
-  emit("center-map", { lat: rioter.latitude, lng: rioter.longitude });
-
-  // Scroll to the list item
-  const rioterElement = document.querySelector(`[data-rioter-id="${rioter.id}"]`);
-  if (rioterElement) {
-    rioterElement.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
-};
-
-onMounted(fetchRioters);
 </script>
 
 <style>
@@ -823,22 +418,18 @@ onMounted(fetchRioters);
   }
 }
 
-/* Custom Transitions */
 .slide-enter-active,
 .slide-leave-active {
   transition: transform 0.3s ease;
 }
-
 .slide-enter-from,
 .slide-leave-to {
   transform: translateX(-100%);
 }
-
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;
 }
-
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;

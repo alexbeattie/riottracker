@@ -40,6 +40,58 @@ export const useRiotersStore = defineStore("rioters", () => {
       loading.value = false;
     }
   };
+
+  const updateRioter = async (rioterData) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      console.log("Updating rioter with ID:", rioterData.id);
+      const response = await api.put(`/rioters/${rioterData.id}`, rioterData);
+
+      // Update the rioter in the rioters array
+      const index = rioters.value.findIndex(r => r.id === rioterData.id);
+      if (index !== -1) {
+        rioters.value[index] = { ...rioters.value[index], ...rioterData };
+      }
+
+      // Also update selectedRioter if it's the same rioter
+      if (selectedRioter.value && selectedRioter.value.id === rioterData.id) {
+        selectedRioter.value = { ...selectedRioter.value, ...rioterData };
+      }
+
+      console.log("Rioter updated successfully");
+      return response.data;
+    } catch (err) {
+      console.error(`Failed to update rioter with ID ${rioterData.id}:`, err);
+      error.value = err.message || `Failed to update rioter with ID ${rioterData.id}`;
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+
+  const createRioter = async (rioterData) => {
+    loading.value = true;
+    error.value = null;
+    try {
+      console.log("Creating new rioter:", rioterData);
+      const response = await api.post('/rioters', rioterData);
+
+      // Add the new rioter to the array with its new ID
+      const newRioter = { ...rioterData, id: response.data.id };
+      rioters.value.push(newRioter);
+
+      console.log("Rioter created successfully with ID:", response.data.id);
+      return response.data;
+    } catch (err) {
+      console.error('Failed to create rioter:', err);
+      error.value = err.message || 'Failed to create rioter';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+
   const filteredRioters = computed(() => {
     return rioters.value.filter((rioter) =>
       searchText.value
@@ -58,6 +110,8 @@ export const useRiotersStore = defineStore("rioters", () => {
     error,
     fetchRioters,
     fetchRioterById,
+    updateRioter,
+    createRioter,
     filteredRioters,
   };
 });
