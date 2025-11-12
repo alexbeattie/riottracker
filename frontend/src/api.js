@@ -1,12 +1,12 @@
 // src/api.js
 import axios from 'axios'
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: 'http://localhost:8085/api',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  withCredentials: true
+  withCredentials: false
 })
 export default api
 
@@ -46,4 +46,3 @@ export default api
 //     }
 //   }
 // }
-

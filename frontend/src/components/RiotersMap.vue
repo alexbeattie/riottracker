@@ -41,6 +41,16 @@ const handleResize = () => {
 };
 
 onMounted(() => {
+  // Suppress unhandled promise rejections from browser extensions/Mapbox workers
+  window.addEventListener('unhandledrejection', (event) => {
+    const errorMsg = event.reason?.message || event.reason?.toString() || '';
+    if (errorMsg.includes('Could not establish connection') || 
+        errorMsg.includes('Receiving end does not exist')) {
+      event.preventDefault(); // Prevent the error from showing in console
+      return;
+    }
+  });
+  
   initializeMap();
   window.addEventListener("resize", handleResize); // Listen for resize
 });
@@ -69,30 +79,56 @@ const markers = ref([]);
 
 const initializeMap = () => {
   if (!map) {
+    if (!MAPBOX_ACCESS_TOKEN) {
+      console.error("Mapbox access token is not set. Please set VUE_APP_MAPBOX_ACCESS_TOKEN in your .env file");
+      return;
+    }
+    
     mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
-    map = new mapboxgl.Map({
-      container: mapContainer.value,
-      style: "mapbox://styles/mapbox/streets-v11",
-      ...(props.bounds
-        ? {
-            bounds: props.bounds,
-            fitBoundsOptions: { padding: 50 },
-          }
-        : {
-            center: [-98.5795, 39.8283],
-            zoom: 4,
-          }),
-    });
+    
+    try {
+      map = new mapboxgl.Map({
+        container: mapContainer.value,
+        style: "mapbox://styles/mapbox/streets-v11",
+        ...(props.bounds
+          ? {
+              bounds: props.bounds,
+              fitBoundsOptions: { padding: 50 },
+            }
+          : {
+              center: [-98.5795, 39.8283],
+              zoom: 4,
+            }),
+      });
 
-    map.addControl(new mapboxgl.NavigationControl());
-    updateMarkers();
+      // Handle map errors gracefully
+      map.on('error', (e) => {
+        // Suppress connection errors from browser extensions
+        if (e.error?.message?.includes('Could not establish connection')) {
+          return;
+        }
+        console.error('Map error:', e.error);
+      });
+
+      map.addControl(new mapboxgl.NavigationControl());
+      
+      // Wait for map to load before updating markers
+      map.on('load', () => {
+        updateMarkers();
+      });
+      
+      // Also update markers immediately in case map is already loaded
+      updateMarkers();
+    } catch (err) {
+      console.error("Error initializing map:", err);
+    }
   }
 };
 const flyToMarker = (rioter) => {
-  if (!map.value || !rioter || !rioter.latitude || !rioter.longitude) return;
+  if (!map || !rioter || !rioter.latitude || !rioter.longitude) return;
 
   console.log("🛫 Flying to:", rioter.first_name, rioter.last_name);
-  map.value.flyTo({
+  map.flyTo({
     center: [rioter.longitude, rioter.latitude],
     zoom: 10,
     essential: true,
@@ -107,19 +143,34 @@ const flyToMarker = (rioter) => {
 const updateMarkers = () => {
   if (!map) return;
 
+  console.log(`🗺️ Updating markers for ${props.rioters.length} rioters`);
+
   // Clear existing markers
   markers.value.forEach((marker) => marker.remove());
   markers.value = [];
 
-  // Group rioters by coordinates
-  const groupedRioters = props.rioters.reduce((acc, rioter) => {
-    if (!rioter.latitude || !rioter.longitude) return acc;
+  // Filter rioters with valid coordinates
+  const validRioters = props.rioters.filter(r => {
+    const hasCoords = r.latitude && r.longitude && 
+                      !isNaN(parseFloat(r.latitude)) && 
+                      !isNaN(parseFloat(r.longitude));
+    if (!hasCoords) {
+      console.warn(`⚠️ Rioter ${r.id} (${r.first_name} ${r.last_name}) missing coordinates`);
+    }
+    return hasCoords;
+  });
 
-    const key = `${rioter.latitude},${rioter.longitude}`;
+  console.log(`✅ ${validRioters.length} rioters have valid coordinates`);
+
+  // Group rioters by coordinates
+  const groupedRioters = validRioters.reduce((acc, rioter) => {
+    const lat = parseFloat(rioter.latitude);
+    const lng = parseFloat(rioter.longitude);
+    const key = `${lat},${lng}`;
     if (!acc[key]) {
       acc[key] = {
         rioters: [],
-        coordinates: [parseFloat(rioter.longitude), parseFloat(rioter.latitude)],
+        coordinates: [lng, lat],
         city: rioter.city,
         state: rioter.state,
       };
@@ -134,9 +185,17 @@ const updateMarkers = () => {
   watch(
     () => props.selectedRioter,
     async (newSelectedRioter) => {
-      if (!newSelectedRioter || markers.value.length === 0) {
-        console.warn("⚠️ No selected rioter or no markers loaded.");
-        return;
+      if (!newSelectedRioter) {
+        return; // No rioter selected, nothing to do
+      }
+      
+      if (markers.value.length === 0) {
+        // Markers not loaded yet, wait a bit and try again
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (markers.value.length === 0) {
+          console.warn("⚠️ Markers not loaded yet, cannot center on rioter");
+          return;
+        }
       }
 
       console.log("📍 Centering map on:", newSelectedRioter);
@@ -230,6 +289,8 @@ const updateMarkers = () => {
     });
   });
 
+  console.log(`📍 Created ${markers.value.length} markers on map`);
+
   // Fit bounds if provided
   if (props.bounds && map) {
     map.fitBounds(props.bounds, {
@@ -300,7 +361,43 @@ watch(
   },
   { immediate: true }
 );
-defineExpose({ flyToMarker });
+const getMapCenter = () => {
+  if (!map) {
+    console.warn("Map not initialized yet");
+    return null;
+  }
+  try {
+    // Check if map is loaded
+    if (!map.loaded()) {
+      console.warn("Map not loaded yet");
+      // Return current center even if not fully loaded
+    }
+    const center = map.getCenter();
+    if (!center) {
+      console.warn("Map center is null");
+      return null;
+    }
+    
+    const lat = typeof center.lat === 'function' ? center.lat() : center.lat;
+    const lng = typeof center.lng === 'function' ? center.lng() : center.lng;
+    
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+      console.warn("Map center coordinates invalid:", { lat, lng });
+      return null;
+    }
+    
+    console.log("Map center retrieved:", { lat, lng });
+    return {
+      lat: lat,
+      lng: lng
+    };
+  } catch (err) {
+    console.error("Error getting map center:", err);
+    return null;
+  }
+};
+
+defineExpose({ flyToMarker, getMapCenter });
 
 // onMounted(initializeMap);
 onBeforeUnmount(() => {

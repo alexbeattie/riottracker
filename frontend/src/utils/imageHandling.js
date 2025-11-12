@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = "http://localhost:8085";
 
 export const getImageUrl = (photoName) => {
   if (!photoName || typeof photoName !== "string") {

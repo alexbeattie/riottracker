@@ -378,7 +378,7 @@ export default {
 
       try {
         // Use the correct endpoint with /api prefix
-        const response = await fetch("http://localhost:8080/api/rioters/upload-photo", {
+        const response = await fetch("http://localhost:8085/api/rioters/upload-photo", {
           method: "POST",
           body: formData,
         });
@@ -400,8 +400,8 @@ export default {
         return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23cccccc'/%3E%3Ctext x='50' y='50' font-size='14' text-anchor='middle' alignment-baseline='middle' font-family='Arial' fill='%23666666'%3ENo Image%3C/text%3E%3C/svg%3E";
       }
 
-      // Fix: Use the correct URL for photos (correcting the port to 8080)
-      return `http://localhost:8080/photos/${encodeURIComponent(photoName)}`;
+      // Fix: Use the correct URL for photos (correcting the port to 8085)
+      return `http://localhost:8085/photos/${encodeURIComponent(photoName)}`;
     },
 
     handleImageError(event) {
