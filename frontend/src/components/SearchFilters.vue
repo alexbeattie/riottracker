@@ -42,7 +42,7 @@
     </div>
 
     <!-- Dropdowns Grid (Inline) -->
-    <div class="grid grid-cols-3 gap-4 mb-4 text-sm">
+    <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
       <!-- State Dropdown -->
       <div class="relative">
         <label class="block text-gray-700 mb-1">State</label>
@@ -58,20 +58,27 @@
         </select>
       </div>
 
-      <!-- Charges Dropdown -->
+      <!-- Charges - Multiple Selection Buttons (COMMENTED OUT - Not working correctly) -->
+      <!--
       <div class="relative">
         <label class="block text-gray-700 mb-1">Charges</label>
-        <select
-          v-model="filters.charges"
-          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          @change="emitFilters"
-        >
-          <option value="">Any charges...</option>
-          <option value="violence_assault">Violence/assault</option>
-          <option value="conspiracy">Conspiracy</option>
-          <option value="property">Property destruction</option>
-        </select>
+        <div class="flex flex-wrap gap-1">
+          <button
+            v-for="(label, key) in chargeOptions"
+            :key="key"
+            class="px-2 py-1 rounded-lg text-xs font-medium transition whitespace-nowrap border border-gray-300 shadow-sm"
+            :class="
+              filters.charges[key]
+                ? 'bg-red-500 text-white border-red-500'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            "
+            @click="toggleCharge(key)"
+          >
+            {{ label }}
+          </button>
+        </div>
       </div>
+      -->
 
       <!-- Status Dropdown -->
       <div class="relative">
@@ -120,7 +127,7 @@ import { ref, watch, defineEmits, onMounted } from "vue";
 import api from "../api"; // Ensure this is your API file
 
 // Define the emit function
-const emit = defineEmits(["filters-changed"]);
+const emit = defineEmits(["filters-changed", "select-rioter"]);
 const debounceTimeout = ref(null);
 const showSuggestions = ref(false); // Controls dropdown visibility
 const searchSuggestions = ref([]); // Stores API search results
@@ -133,7 +140,11 @@ const rioterCount = ref(null); // Stores rioter count for selected state
 const filters = ref({
   searchText: "",
   state: "",
-  charges: "",
+  charges: {
+    violence_assault: false,
+    conspiracy: false,
+    property: false,
+  },
   status: "",
   affiliations: {
     military_le: false,
@@ -202,6 +213,13 @@ const affiliationOptions = ref({
   extremist: "Extremist Orgs",
   sentenced: "Sentenced",
 });
+
+// Charges filter commented out - not working correctly
+// const chargeOptions = ref({
+//   violence_assault: "Violence/Assault",
+//   conspiracy: "Conspiracy",
+//   property: "Property",
+// });
 // Fetch suggestions from backend
 const fetchSearchSuggestions = async () => {
   if (!filters.value.searchText.trim()) {
@@ -219,15 +237,82 @@ const fetchSearchSuggestions = async () => {
   }
 };
 // Apply the selected suggestion
-const selectSuggestion = (suggestion) => {
+const selectSuggestion = async (suggestion) => {
   console.log("Clicked suggestion:", suggestion); // Debugging
 
-  filters.value.searchText = suggestion.replace(/<\/?mark>/g, ""); // Remove HTML highlighting
+  // Store the suggestion temporarily
+  const plainName = suggestion.replace(/<\/?mark>/g, ""); // Remove HTML highlighting
+  
+  // Clear the search field temporarily to avoid automatic search
+  const originalSearchText = filters.value.searchText;
+  filters.value.searchText = "";
   searchSuggestions.value = [];
   showSuggestions.value = false;
-
-  console.log("Updated filters:", filters.value); // Debugging
-  emit("filters-changed", filters.value); // Notify parent
+  
+  try {
+    // Make a direct API call for this specific name
+    const nameQuery = plainName.trim();
+    console.log("Searching for exact match:", nameQuery);
+    
+    // Split the name into first and last name parts
+    const nameParts = nameQuery.split(' ');
+    let firstName = '';
+    let lastName = '';
+    
+    if (nameParts.length >= 2) {
+      firstName = nameParts[0];
+      lastName = nameParts.slice(1).join(' ');
+    } else {
+      // If only one word, use it as both first and last name in the search
+      firstName = lastName = nameParts[0];
+    }
+    
+    // Perform an exact search using a custom parameter
+    const exactResponse = await api.get(`/rioters`, {
+      params: {
+        page: 1,
+        page_size: 50,
+        search_exact: true,
+        first_name: firstName,
+        last_name: lastName
+      }
+    });
+    
+    console.log("Search response:", exactResponse.data);
+    
+    if (exactResponse.data.data && exactResponse.data.data.length > 0) {
+      // First try to find someone with exactly this name
+      const exactMatch = exactResponse.data.data.find(rioter => 
+        `${rioter.first_name} ${rioter.last_name}`.toLowerCase() === nameQuery.toLowerCase()
+      );
+      
+      if (exactMatch) {
+        console.log("Found exact name match:", exactMatch);
+        // Set the search text to show what was searched
+        filters.value.searchText = plainName;
+        // Emit both events
+        emit("filters-changed", filters.value);
+        emit("select-rioter", exactMatch);
+        return;
+      } 
+      
+      // If no exact match, use the first result as a fallback
+      console.log("No exact match, using first result:", exactResponse.data.data[0]);
+      filters.value.searchText = plainName;
+      emit("filters-changed", filters.value);
+      emit("select-rioter", exactResponse.data.data[0]);
+    } else {
+      // No results found, restore original search text
+      console.log("No results found for:", nameQuery);
+      filters.value.searchText = plainName;
+      emit("filters-changed", filters.value);
+    }
+  } catch (error) {
+    console.error("Error finding rioter by name:", error);
+    // Restore original search on error
+    filters.value.searchText = originalSearchText;
+    emit("filters-changed", filters.value);
+  }
 };
 
 // Fetch the state counts from the backend
@@ -252,7 +337,7 @@ const emitFilters = () => {
     const payload = {
       searchText: filters.value.searchText.trim(),
       state: filters.value.state,
-      charges: filters.value.charges,
+      charges: filters.value.charges, // Now an object with multiple charge types
       status: filters.value.status,
       affiliations: { ...filters.value.affiliations },
     };
@@ -261,6 +346,12 @@ const emitFilters = () => {
     loading.value = false; // Hide loading indicator
   }, 500);
 };
+
+// Toggle charge types (Button Click) - COMMENTED OUT - Not working correctly
+// const toggleCharge = (key) => {
+//   filters.value.charges[key] = !filters.value.charges[key];
+//   emitFilters();
+// };
 
 // Toggle affiliations (Button Click)
 const toggleAffiliation = (key) => {
@@ -273,7 +364,11 @@ const resetFilters = async () => {
   filters.value = {
     searchText: "",
     state: "",
-    charges: "",
+    charges: {
+      violence_assault: false,
+      conspiracy: false,
+      property: false,
+    },
     status: "",
     affiliations: {
       military_le: false,
@@ -299,8 +394,16 @@ const debounceSearch = () => {
     emitFilters();
     return;
   }
+  
+  // Make sure suggestions are visible during typing
+  showSuggestions.value = true;
+  
+  // Immediately fetch suggestions as user types
+  fetchSearchSuggestions();
+  
+  // Still use debounce for search to avoid too many API calls
   debounceTimeout.value = setTimeout(() => {
-    fetchSearchSuggestions();
+    emitFilters();
   }, 300);
 };
 
